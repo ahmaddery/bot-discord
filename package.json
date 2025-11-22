@@ -1,34 +1,23 @@
 {
-  "name": "discord-music-bot",
+  "name": "discord-music-bot-soundcloud",
   "version": "1.0.0",
-  "description": "Bot Discord untuk memutar musik dari YouTube dengan kualitas audio jernih",
+  "description": "Bot Discord untuk memutar musik dari SoundCloud",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
   },
-  "keywords": [
-    "discord",
-    "bot",
-    "music",
-    "youtube"
-  ],
+  "keywords": ["discord", "bot", "music", "soundcloud"],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@discordjs/opus": "^0.10.0",
-    "@discordjs/voice": "^0.19.0",
-    "@distube/ytdl-core": "^4.16.12",
-    "@snazzah/davey": "^0.1.8",
     "discord.js": "^14.14.1",
-    "distube": "^5.0.7",
+    "@discordjs/voice": "^0.16.1",
+    "@discordjs/opus": "^0.9.0",
+    "play-dl": "^1.9.7",
     "dotenv": "^16.3.1",
     "ffmpeg-static": "^5.2.0",
-    "libsodium-wrappers": "^0.7.15",
-    "play-dl": "^1.9.7",
-    "sodium-native": "^5.0.10",
-    "youtube-sr": "^4.3.12",
-    "ytdl-core": "^4.11.5"
+    "libsodium-wrappers": "^0.7.13"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

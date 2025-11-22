@@ -1,155 +1,133 @@
-# 🎵 Discord Music Bot
+# 🎵 Discord Music Bot (SoundCloud)
 
-Bot Discord untuk memutar musik dari YouTube dengan kualitas audio yang sangat jernih.
+Bot Discord untuk memutar musik dari SoundCloud dengan fitur lengkap.
 
 ## ✨ Fitur
 
-- ▶️ Memutar musik dari YouTube (URL atau pencarian)
-- 🎵 Kualitas audio tinggi (highestaudio)
-- 📝 Sistem queue/antrian lagu
-- ⏭️ Skip, pause, resume, stop
-- 🎨 Embed pesan yang menarik
-- 👥 Multi-server support
+- ✅ Memutar musik dari SoundCloud (URL atau pencarian)
+- ✅ Queue sistem untuk multiple lagu
+- ✅ Skip lagu
+- ✅ Stop dan keluar dari voice channel
+- ✅ Menampilkan queue
+- ✅ Menampilkan lagu yang sedang diputar
+- ✅ Embed yang menarik untuk setiap respons
 
-## 📋 Persyaratan
+## 📋 Prerequisites
 
-- Node.js v16.9.0 atau lebih tinggi
-- FFmpeg (sudah termasuk dalam dependencies)
-- Discord Bot Token
+Pastikan Anda sudah menginstall:
+- [Node.js](https://nodejs.org/) (versi 16.9.0 atau lebih tinggi)
+- [FFmpeg](https://ffmpeg.org/download.html) (diperlukan untuk streaming audio)
+
+### Install FFmpeg di Windows:
+1. Download FFmpeg dari [situs resmi](https://ffmpeg.org/download.html)
+2. Extract file ke folder (misal: `C:\ffmpeg`)
+3. Tambahkan `C:\ffmpeg\bin` ke Environment Variables PATH
+4. Restart Command Prompt/PowerShell
+
+Atau gunakan Chocolatey:
+```powershell
+choco install ffmpeg
+```
 
 ## 🚀 Instalasi
 
-### 1. Clone atau download project ini
+1. Clone atau download repository ini
 
-### 2. Install dependencies
+2. Install dependencies:
 ```bash
 npm install
 ```
 
-### 3. Setup Bot Discord
-
-1. Buka [Discord Developer Portal](https://discord.com/developers/applications)
-2. Klik "New Application" dan beri nama bot Anda
-3. Pergi ke tab "Bot" dan klik "Add Bot"
-4. Di bagian "Token", klik "Copy" untuk menyalin token bot
-5. Aktifkan **MESSAGE CONTENT INTENT** di bagian "Privileged Gateway Intents"
-6. Pergi ke tab "OAuth2" > "URL Generator"
-7. Pilih scopes: `bot` dan `applications.commands`
-8. Pilih Bot Permissions:
-   - Send Messages
-   - Connect
-   - Speak
-   - Use Voice Activity
-9. Copy URL yang dihasilkan dan buka di browser untuk invite bot ke server
-
-### 4. Konfigurasi Environment
-
-1. Copy file `.env.example` menjadi `.env`:
-```bash
-copy .env.example .env
+3. File `.env` sudah ada dengan token Discord Anda:
+```env
+DISCORD_TOKEN=your_token_here
+CLIENT_ID=your_client_id_here
 ```
 
-2. Edit file `.env` dan masukkan token bot Anda:
-```
-DISCORD_TOKEN=token_bot_anda_disini
-CLIENT_ID=client_id_anda_disini
-```
+4. Pastikan bot Anda memiliki permission yang cukup di Discord:
+   - `Send Messages`
+   - `Connect`
+   - `Speak`
+   - `Read Message History`
+   - `Use Voice Activity`
 
-### 5. Jalankan Bot
+## 🎮 Cara Menjalankan
 
+### Mode Normal:
 ```bash
 npm start
 ```
 
-Atau untuk development dengan auto-reload:
+### Mode Development (auto-restart):
 ```bash
 npm run dev
 ```
 
-## 🎮 Cara Penggunaan
-
-### Perintah Dasar
+## 📝 Daftar Perintah
 
 | Perintah | Alias | Deskripsi |
 |----------|-------|-----------|
-| `!play <judul/URL>` | `!p` | Memutar lagu dari YouTube |
-| `!skip` | `!s` | Melewati lagu yang sedang diputar |
-| `!stop` | `!leave` | Menghentikan musik dan keluar dari VC |
-| `!pause` | - | Mem-pause lagu yang sedang diputar |
-| `!resume` | - | Melanjutkan lagu yang di-pause |
-| `!queue` | `!q` | Menampilkan daftar lagu dalam queue |
-| `!nowplaying` | `!np` | Menampilkan lagu yang sedang diputar |
-| `!help` | - | Menampilkan panduan perintah |
+| `joshua play <url/query>` | `joshua p` | Memutar lagu dari SoundCloud URL atau melakukan pencarian |
+| `joshua skip` | `joshua s` | Melewati lagu yang sedang diputar |
+| `joshua stop` | - | Berhenti memutar dan keluar dari voice channel |
+| `joshua queue` | `joshua q` | Menampilkan daftar lagu di queue (max 10) |
+| `joshua nowplaying` | `joshua np` | Menampilkan lagu yang sedang diputar |
+| `joshua help` | - | Menampilkan daftar perintah |
 
-### Contoh Penggunaan
+## 💡 Contoh Penggunaan
 
+### Memutar lagu dengan URL SoundCloud:
 ```
-!play Dewa 19 Separuh Nafas
-!play https://www.youtube.com/watch?v=example
-!skip
-!queue
-!np
+joshua play https://soundcloud.com/artist/song-name
 ```
 
-## 🔧 Troubleshooting
-
-### Bot tidak merespon
-- Pastikan MESSAGE CONTENT INTENT sudah diaktifkan di Discord Developer Portal
-- Cek token bot sudah benar di file `.env`
-
-### Tidak ada suara
-- Pastikan bot memiliki permission "Connect" dan "Speak"
-- Pastikan Anda berada di voice channel yang sama dengan bot
-- Cek volume di Discord
-
-### Error saat install
-```bash
-# Jika ada error dengan sodium atau opus, coba:
-npm install --force
-
-# Atau install manual:
-npm install sodium-native --force
-npm install @discordjs/opus --force
+### Memutar lagu dengan pencarian:
+```
+joshua play alan walker faded
 ```
 
-### FFmpeg tidak ditemukan
-FFmpeg sudah termasuk dalam `ffmpeg-static`. Jika masih error, install FFmpeg secara manual:
-- Windows: Download dari [ffmpeg.org](https://ffmpeg.org/download.html)
-- Tambahkan ke PATH
+### Skip lagu:
+```
+joshua skip
+```
 
-## 📦 Dependencies
+### Lihat queue:
+```
+joshua queue
+```
 
-- `discord.js` - Library Discord
-- `@discordjs/voice` - Voice connection handler
-- `ytdl-core` - YouTube downloader (kualitas audio tinggi)
-- `play-dl` - YouTube search dan streaming
-- `ffmpeg-static` - FFmpeg untuk audio processing
-- `@discordjs/opus` - Audio encoding
-- `sodium-native` - Encryption untuk voice
+## 🛠️ Teknologi yang Digunakan
 
-## 🎵 Kualitas Audio
+- **discord.js** - Library untuk Discord Bot
+- **@discordjs/voice** - Library untuk voice connection
+- **play-dl** - Library untuk streaming dari SoundCloud
+- **dotenv** - Environment variables management
+- **ffmpeg-static** - FFmpeg binary
 
-Bot ini dikonfigurasi untuk memberikan kualitas audio terbaik:
-- Filter: `audioonly`
-- Quality: `highestaudio`
-- High Water Mark: 33554432 bytes (buffer besar)
-- Chunk size: Dynamic
+## ⚠️ Troubleshooting
 
-## 📝 Lisensi
+### Bot tidak bisa join voice channel:
+- Pastikan bot memiliki permission `Connect` dan `Speak`
+- Pastikan Anda sudah masuk ke voice channel
+
+### Error saat memutar musik:
+- Pastikan FFmpeg sudah terinstall dengan benar
+- Cek URL SoundCloud valid
+- Pastikan lagu bisa diakses secara publik
+
+### Bot tidak merespons:
+- Cek token di file `.env` sudah benar
+- Pastikan bot sudah online di Discord
+- Cek bot memiliki permission `Read Messages` dan `Send Messages`
+
+## 📄 License
 
 ISC
 
-## 💡 Tips
+## 👤 Author
 
-- Gunakan URL YouTube langsung untuk hasil terbaik
-- Queue bisa menampung banyak lagu
-- Bot akan otomatis keluar jika queue kosong
-- Pastikan koneksi internet stabil untuk streaming jernih
-
-## 🤝 Kontribusi
-
-Silakan berkontribusi dengan membuat pull request atau melaporkan bug via issues.
+Bot ini dibuat untuk keperluan edukasi dan hiburan.
 
 ---
 
-Dibuat dengan ❤️ menggunakan Node.js dan Discord.js
+**Note:** Bot ini menggunakan SoundCloud sebagai sumber musik. Pastikan Anda mengikuti aturan dan kebijakan SoundCloud dalam penggunaan konten mereka.

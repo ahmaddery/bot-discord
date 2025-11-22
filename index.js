@@ -1,370 +1,273 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const { DisTube } = require('distube');
-const { YouTubePlugin } = require('@distube/youtube');
-const { SoundCloudPlugin } = require('@distube/soundcloud');
-const ffmpeg = require('ffmpeg-static');
-const fs = require('fs');
-const path = require('path');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
+const play = require('play-dl');
 
+// Inisialisasi bot
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildVoiceStates
-    ]
+        GatewayIntentBits.GuildVoiceStates,
+    ],
 });
 
-// Load cookies dalam format header string
-let cookieHeader = '';
-const cookieTxtPath = path.join(__dirname, 'cookies.txt');
+// Queue untuk menyimpan lagu
+const queues = new Map();
 
-if (fs.existsSync(cookieTxtPath)) {
-    try {
-        const cookieData = fs.readFileSync(cookieTxtPath, 'utf-8');
-        const lines = cookieData.split('\n').filter(line => 
-            line.trim() && !line.startsWith('#')
-        );
-        
-        const cookies = lines.map(line => {
-            const parts = line.split('\t');
-            if (parts.length >= 7) {
-                return `${parts[5]}=${parts[6]}`;
-            }
-            return null;
-        }).filter(Boolean);
-        
-        cookieHeader = cookies.join('; ');
-        console.log(`✅ Loaded ${cookies.length} YouTube cookies`);
-    } catch (error) {
-        console.error('⚠️ Error loading cookies:', error.message);
+// Struktur queue untuk setiap server
+class Queue {
+    constructor() {
+        this.songs = [];
+        this.connection = null;
+        this.player = null;
+        this.isPlaying = false;
     }
-} else {
-    console.warn('⚠️ No cookies.txt found');
 }
 
-// Setup DisTube dengan YouTubePlugin + cookie header + custom user agent
-const distube = new DisTube(client, {
-    plugins: [
-        new YouTubePlugin({
-            ytdlOptions: {
-                quality: 'highestaudio',
-                highWaterMark: 1 << 25,
-                requestOptions: {
-                    headers: {
-                        'cookie': cookieHeader,
-                        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'accept-language': 'en-US,en;q=0.9'
-                    }
-                }
-            }
-        }),
-        new SoundCloudPlugin()
-    ],
-    ffmpeg: {
-        path: ffmpeg
-    },
-    emitNewSongOnly: false,
-    savePreviousSongs: true
+// Event ketika bot siap
+client.once('ready', () => {
+    console.log(`✅ Bot ${client.user.tag} sudah online!`);
+    client.user.setActivity('🎵 joshua help untuk perintah', { type: 'LISTENING' });
 });
 
-client.once('clientReady', () => {
-    console.log(`✅ Bot siap! Login sebagai ${client.user.tag}`);
-    client.user.setActivity('🎵 Music | joshua help', { type: 'LISTENING' });
-});
-
-client.on('messageCreate', async message => {
-    if (message.author.bot || !message.content.toLowerCase().startsWith('joshua ')) return;
+// Event ketika menerima pesan
+client.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+    if (!message.content.toLowerCase().startsWith('joshua ')) return;
 
     const args = message.content.slice(7).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    try {
-        switch (command) {
-            case 'play':
-            case 'p':
-                await play_music(message, args);
-                break;
-            case 'skip':
-            case 's':
-                await skip_song(message);
-                break;
-            case 'stop':
-            case 'leave':
-                await stop_music(message);
-                break;
-            case 'pause':
-                await pause_music(message);
-                break;
-            case 'resume':
-                await resume_music(message);
-                break;
-            case 'queue':
-            case 'q':
-                await show_queue(message);
-                break;
-            case 'nowplaying':
-            case 'np':
-                await now_playing(message);
-                break;
-            case 'help':
-                await show_help(message);
-                break;
-            default:
-                break;
+    // Command: !play <url atau query>
+    if (command === 'play' || command === 'p') {
+        if (!message.member.voice.channel) {
+            return message.reply('❌ Kamu harus masuk ke voice channel terlebih dahulu!');
         }
-    } catch (error) {
-        console.error('Error:', error);
-        message.reply('❌ Terjadi kesalahan saat menjalankan perintah.');
-    }
-});
 
-async function play_music(message, args) {
-    const voiceChannel = message.member.voice.channel;
-    
-    if (!voiceChannel) {
-        return message.reply('❌ Kamu harus berada di voice channel terlebih dahulu!');
-    }
-
-    if (!args.length) {
-        return message.reply('❌ Berikan URL YouTube atau kata kunci pencarian!\nContoh: `joshua play Dewa 19`');
-    }
-
-    const searchQuery = args.join(' ');
-    
-    // Cek permission bot
-    const permissions = voiceChannel.permissionsFor(message.client.user);
-    if (!permissions.has('Connect') || !permissions.has('Speak')) {
-        return message.reply('❌ Bot tidak memiliki izin untuk join atau berbicara di voice channel!');
-    }
-    
-    try {
-        const loadingMsg = await message.reply('🔍 Mencari lagu...');
-        
-        // DisTube akan handle search otomatis
-        await distube.play(voiceChannel, searchQuery, {
-            textChannel: message.channel,
-            member: message.member,
-        });
-        
-        await loadingMsg.delete().catch(() => {});
-    } catch (error) {
-        console.error('Error saat memutar:', error);
-        
-        let errorMsg = '❌ Terjadi kesalahan saat mencoba memutar lagu!';
-        
-        if (error.message && error.message.includes('bot')) {
-            errorMsg = '❌ **YouTube memblokir bot!**\n\n' +
-                      '**Solusi:**\n' +
-                      '1. Export cookies BARU dari browser (cookies mungkin expired)\n' +
-                      '2. Gunakan VPN di server Ubuntu\n' +
-                      '3. Coba SoundCloud: `joshua play https://soundcloud.com/link`\n\n' +
-                      'Tutorial export cookies: lihat README-COOKIES.md';
-        } else if (error.errorCode === 'VOICE_CONNECT_FAILED') {
-            errorMsg = '❌ Tidak dapat terhubung ke voice channel. Pastikan bot punya izin Connect dan Speak.';
-        } else if (error.errorCode === 'VOICE_ALREADY_CREATED') {
-            errorMsg = '❌ Bot sedang digunakan di voice channel lain. Ketik `joshua stop` terlebih dahulu.';
+        if (!args.length) {
+            return message.reply('❌ Gunakan: `joshua play <url SoundCloud atau query pencarian>`');
         }
+
+        const query = args.join(' ');
         
-        message.reply(errorMsg);
-    }
-}
-
-async function skip_song(message) {
-    const queue = distube.getQueue(message.guild.id);
-    
-    if (!message.member.voice.channel) {
-        return message.reply('❌ Kamu harus berada di voice channel!');
-    }
-    
-    if (!queue) {
-        return message.reply('❌ Tidak ada lagu yang sedang diputar!');
-    }
-    
-    try {
-        await distube.skip(message.guild.id);
-        message.channel.send('⏭️ Melewati lagu!');
-    } catch (error) {
-        message.reply('❌ Terjadi kesalahan saat skip lagu!');
-    }
-}
-
-async function stop_music(message) {
-    const queue = distube.getQueue(message.guild.id);
-    
-    if (!message.member.voice.channel) {
-        return message.reply('❌ Kamu harus berada di voice channel!');
-    }
-    
-    if (!queue) {
-        return message.reply('❌ Tidak ada lagu yang sedang diputar!');
-    }
-    
-    await distube.stop(message.guild.id);
-    message.channel.send('⏹️ Berhenti memutar musik dan keluar dari voice channel. Goodbye! 👋');
-}
-
-async function pause_music(message) {
-    const queue = distube.getQueue(message.guild.id);
-    
-    if (!message.member.voice.channel) {
-        return message.reply('❌ Kamu harus berada di voice channel!');
-    }
-    
-    if (!queue) {
-        return message.reply('❌ Tidak ada lagu yang sedang diputar!');
-    }
-    
-    if (queue.paused) {
-        return message.reply('⏸️ Lagu sudah dalam keadaan pause!');
-    }
-    
-    await distube.pause(message.guild.id);
-    message.channel.send('⏸️ Lagu di-pause!');
-}
-
-async function resume_music(message) {
-    const queue = distube.getQueue(message.guild.id);
-    
-    if (!message.member.voice.channel) {
-        return message.reply('❌ Kamu harus berada di voice channel!');
-    }
-    
-    if (!queue) {
-        return message.reply('❌ Tidak ada lagu yang sedang diputar!');
-    }
-    
-    if (!queue.paused) {
-        return message.reply('▶️ Lagu sudah dalam keadaan playing!');
-    }
-    
-    await distube.resume(message.guild.id);
-    message.channel.send('▶️ Melanjutkan lagu!');
-}
-
-async function show_queue(message) {
-    const queue = distube.getQueue(message.guild.id);
-    
-    if (!queue || !queue.songs.length) {
-        return message.reply('❌ Queue kosong!');
-    }
-    
-    const queueList = queue.songs
-        .slice(0, 10)
-        .map((song, index) => {
-            if (index === 0) {
-                return `**▶️ Sedang diputar:**\n${index + 1}. [${song.name}](${song.url}) - \`${song.formattedDuration}\``;
+        try {
+            message.channel.send('🔍 Mencari lagu...');
+            
+            // Cek apakah input adalah URL SoundCloud
+            let songInfo;
+            if (query.includes('soundcloud.com')) {
+                songInfo = await play.soundcloud(query);
+            } else {
+                // Jika bukan URL, search di SoundCloud
+                const searched = await play.search(query, { source: { soundcloud: 'tracks' }, limit: 1 });
+                if (!searched || searched.length === 0) {
+                    return message.reply('❌ Tidak menemukan lagu dengan query tersebut!');
+                }
+                songInfo = searched[0];
             }
-            return `${index + 1}. [${song.name}](${song.url}) - \`${song.formattedDuration}\``;
-        })
-        .join('\n\n');
-    
-    const embed = new EmbedBuilder()
-        .setColor('#0099FF')
-        .setTitle('📝 Queue Musik')
-        .setDescription(queueList)
-        .setFooter({ text: `Total ${queue.songs.length} lagu dalam queue` })
-        .setTimestamp();
-    
-    if (queue.songs.length > 10) {
-        embed.setFooter({ text: `Menampilkan 10 dari ${queue.songs.length} lagu dalam queue` });
+
+            const song = {
+                title: songInfo.name || songInfo.title,
+                url: songInfo.url,
+                duration: formatDuration(songInfo.durationInSec),
+                thumbnail: songInfo.thumbnail?.url || songInfo.thumbnails?.[0]?.url || null,
+                requester: message.author.tag,
+            };
+
+            let queue = queues.get(message.guild.id);
+            
+            if (!queue) {
+                queue = new Queue();
+                queues.set(message.guild.id, queue);
+
+                queue.connection = joinVoiceChannel({
+                    channelId: message.member.voice.channel.id,
+                    guildId: message.guild.id,
+                    adapterCreator: message.guild.voiceAdapterCreator,
+                });
+
+                queue.player = createAudioPlayer();
+                queue.connection.subscribe(queue.player);
+
+                // Event ketika lagu selesai
+                queue.player.on(AudioPlayerStatus.Idle, () => {
+                    queue.songs.shift();
+                    if (queue.songs.length > 0) {
+                        playSong(message.guild, queue.songs[0]);
+                    } else {
+                        queue.isPlaying = false;
+                    }
+                });
+
+                queue.player.on('error', error => {
+                    console.error('Error:', error);
+                    message.channel.send('❌ Terjadi error saat memutar lagu!');
+                    queue.songs.shift();
+                    if (queue.songs.length > 0) {
+                        playSong(message.guild, queue.songs[0]);
+                    }
+                });
+            }
+
+            queue.songs.push(song);
+
+            if (queue.songs.length === 1) {
+                playSong(message.guild, song);
+                
+                const embed = new EmbedBuilder()
+                    .setColor('#FF5500')
+                    .setTitle('🎵 Sedang Memutar')
+                    .setDescription(`[${song.title}](${song.url})`)
+                    .addFields(
+                        { name: '⏱️ Durasi', value: song.duration, inline: true },
+                        { name: '👤 Diminta oleh', value: song.requester, inline: true }
+                    )
+                    .setThumbnail(song.thumbnail);
+                
+                message.channel.send({ embeds: [embed] });
+            } else {
+                const embed = new EmbedBuilder()
+                    .setColor('#00FF00')
+                    .setTitle('➕ Ditambahkan ke Queue')
+                    .setDescription(`[${song.title}](${song.url})`)
+                    .addFields(
+                        { name: '⏱️ Durasi', value: song.duration, inline: true },
+                        { name: '📝 Posisi', value: `#${queue.songs.length}`, inline: true }
+                    )
+                    .setThumbnail(song.thumbnail);
+                
+                message.channel.send({ embeds: [embed] });
+            }
+
+        } catch (error) {
+            console.error(error);
+            message.reply('❌ Terjadi error saat memproses lagu! Pastikan URL SoundCloud valid atau coba query pencarian.');
+        }
     }
-    
-    message.channel.send({ embeds: [embed] });
+
+    // Command: !skip
+    if (command === 'skip' || command === 's') {
+        const queue = queues.get(message.guild.id);
+        if (!queue || !queue.isPlaying) {
+            return message.reply('❌ Tidak ada lagu yang sedang diputar!');
+        }
+
+        queue.player.stop();
+        message.channel.send('⏭️ Melewati lagu...');
+    }
+
+    // Command: !stop
+    if (command === 'stop') {
+        const queue = queues.get(message.guild.id);
+        if (!queue) {
+            return message.reply('❌ Tidak ada lagu yang sedang diputar!');
+        }
+
+        queue.songs = [];
+        queue.player.stop();
+        queue.connection.destroy();
+        queues.delete(message.guild.id);
+        message.channel.send('⏹️ Berhenti memutar musik dan keluar dari voice channel!');
+    }
+
+    // Command: !queue
+    if (command === 'queue' || command === 'q') {
+        const queue = queues.get(message.guild.id);
+        if (!queue || queue.songs.length === 0) {
+            return message.reply('❌ Queue kosong!');
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor('#0099FF')
+            .setTitle('📋 Queue Lagu')
+            .setDescription(
+                queue.songs
+                    .slice(0, 10)
+                    .map((song, index) => `**${index + 1}.** [${song.title}](${song.url}) - \`${song.duration}\``)
+                    .join('\n')
+            )
+            .setFooter({ text: `Total: ${queue.songs.length} lagu` });
+
+        message.channel.send({ embeds: [embed] });
+    }
+
+    // Command: !nowplaying atau !np
+    if (command === 'nowplaying' || command === 'np') {
+        const queue = queues.get(message.guild.id);
+        if (!queue || !queue.isPlaying || queue.songs.length === 0) {
+            return message.reply('❌ Tidak ada lagu yang sedang diputar!');
+        }
+
+        const song = queue.songs[0];
+        const embed = new EmbedBuilder()
+            .setColor('#FF5500')
+            .setTitle('🎵 Sedang Memutar')
+            .setDescription(`[${song.title}](${song.url})`)
+            .addFields(
+                { name: '⏱️ Durasi', value: song.duration, inline: true },
+                { name: '👤 Diminta oleh', value: song.requester, inline: true }
+            )
+            .setThumbnail(song.thumbnail);
+
+        message.channel.send({ embeds: [embed] });
+    }
+
+    // Command: joshua help
+    if (command === 'help') {
+        const embed = new EmbedBuilder()
+            .setColor('#FFD700')
+            .setTitle('🎵 Daftar Perintah Bot Music')
+            .setDescription('Bot musik SoundCloud untuk Discord')
+            .addFields(
+                { name: 'joshua play <url/query>', value: 'Memutar lagu dari SoundCloud URL atau pencarian', inline: false },
+                { name: 'joshua skip', value: 'Melewati lagu yang sedang diputar', inline: false },
+                { name: 'joshua stop', value: 'Berhenti memutar dan keluar dari voice channel', inline: false },
+                { name: 'joshua queue', value: 'Menampilkan daftar lagu di queue', inline: false },
+                { name: 'joshua nowplaying (joshua np)', value: 'Menampilkan lagu yang sedang diputar', inline: false },
+                { name: 'joshua help', value: 'Menampilkan perintah ini', inline: false }
+            )
+            .setFooter({ text: 'Prefix: joshua' });
+
+        message.channel.send({ embeds: [embed] });
+    }
+});
+
+// Fungsi untuk memutar lagu
+async function playSong(guild, song) {
+    const queue = queues.get(guild.id);
+    if (!queue) return;
+
+    try {
+        const stream = await play.stream(song.url);
+        const resource = createAudioResource(stream.stream, {
+            inputType: stream.type,
+        });
+
+        queue.player.play(resource);
+        queue.isPlaying = true;
+
+    } catch (error) {
+        console.error(error);
+        queue.songs.shift();
+        if (queue.songs.length > 0) {
+            playSong(guild, queue.songs[0]);
+        }
+    }
 }
 
-async function now_playing(message) {
-    const queue = distube.getQueue(message.guild.id);
-    
-    if (!queue || !queue.songs.length) {
-        return message.reply('❌ Tidak ada lagu yang sedang diputar!');
+// Format durasi
+function formatDuration(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    if (hours > 0) {
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
-    
-    const song = queue.songs[0];
-    
-    const embed = new EmbedBuilder()
-        .setColor('#FF00FF')
-        .setTitle('🎵 Sedang Diputar')
-        .setDescription(`**[${song.name}](${song.url})**`)
-        .addFields(
-            { name: '⏱️ Durasi', value: song.formattedDuration || 'Unknown', inline: true },
-            { name: '👤 Diminta oleh', value: song.user?.tag || song.member?.user?.tag || 'Unknown', inline: true },
-            { name: '📝 Queue', value: `${queue.songs.length} lagu`, inline: true }
-        )
-        .setThumbnail(song.thumbnail)
-        .setTimestamp();
-    
-    message.channel.send({ embeds: [embed] });
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
-async function show_help(message) {
-    const embed = new EmbedBuilder()
-        .setColor('#00FFFF')
-        .setTitle('🎵 Bot Music - Panduan Perintah')
-        .setDescription('Berikut adalah daftar perintah yang tersedia:')
-        .addFields(
-            { name: '▶️ joshua play <judul/URL>', value: 'Memutar lagu dari YouTube atau SoundCloud\nContoh: `joshua play Dewa 19`\nContoh: `joshua play https://soundcloud.com/link`\nAlias: joshua p', inline: false },
-            { name: '⏭️ joshua skip', value: 'Melewati lagu yang sedang diputar\nAlias: joshua s', inline: false },
-            { name: '⏹️ joshua stop', value: 'Menghentikan musik dan keluar dari VC\nAlias: joshua leave', inline: false },
-            { name: '⏸️ joshua pause', value: 'Mem-pause lagu yang sedang diputar', inline: false },
-            { name: '▶️ joshua resume', value: 'Melanjutkan lagu yang di-pause', inline: false },
-            { name: '📝 joshua queue', value: 'Menampilkan daftar lagu dalam queue\nAlias: joshua q', inline: false },
-            { name: '🎵 joshua nowplaying', value: 'Menampilkan lagu yang sedang diputar\nAlias: joshua np', inline: false },
-            { name: '❓ joshua help', value: 'Menampilkan panduan ini', inline: false }
-        )
-        .setFooter({ text: '💡 Tip: YouTube diblokir? Gunakan SoundCloud!' })
-        .setTimestamp();
-    
-    message.channel.send({ embeds: [embed] });
-}
-
-// DisTube Events
-distube.on('playSong', (queue, song) => {
-    const embed = new EmbedBuilder()
-        .setColor('#00FF00')
-        .setTitle('▶️ Mulai memutar')
-        .setDescription(`**[${song.name}](${song.url})**`)
-        .addFields(
-            { name: '⏱️ Durasi', value: song.formattedDuration || 'Unknown', inline: true },
-            { name: '👤 Diminta oleh', value: song.user?.tag || song.member?.user?.tag || 'Unknown', inline: true }
-        )
-        .setThumbnail(song.thumbnail)
-        .setTimestamp();
-
-    queue.textChannel.send({ embeds: [embed] });
-});
-
-distube.on('addSong', (queue, song) => {
-    const embed = new EmbedBuilder()
-        .setColor('#FFA500')
-        .setTitle('➕ Ditambahkan ke queue')
-        .setDescription(`**[${song.name}](${song.url})**`)
-        .addFields(
-            { name: '⏱️ Durasi', value: song.formattedDuration || 'Unknown', inline: true },
-            { name: '👤 Diminta oleh', value: song.user?.tag || song.member?.user?.tag || 'Unknown', inline: true },
-            { name: '📝 Posisi', value: `${queue.songs.length}`, inline: true }
-        )
-        .setThumbnail(song.thumbnail)
-        .setTimestamp();
-
-    queue.textChannel.send({ embeds: [embed] });
-});
-
-distube.on('error', (queue, error) => {
-    console.error('DisTube Error:', error);
-    const errorMessage = error.message || error.errorCode || 'Terjadi kesalahan saat memutar musik!';
-    if (queue && queue.textChannel) {
-        queue.textChannel.send(`❌ Error: ${errorMessage}`).catch(console.error);
-    }
-});
-
-distube.on('finishSong', (queue) => {
-    console.log('Lagu selesai diputar');
-});
-
-distube.on('empty', (queue) => {
-    console.log('Queue kosong, bot akan keluar dari voice channel');
-});
-
+// Login bot
 client.login(process.env.DISCORD_TOKEN);
