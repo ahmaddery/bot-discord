@@ -1,7 +1,7 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { DisTube } = require('distube');
-const { YtDlpPlugin } = require('@distube/yt-dlp');
+const { YouTubePlugin } = require('@distube/youtube');
 const { SoundCloudPlugin } = require('@distube/soundcloud');
 const ffmpeg = require('ffmpeg-static');
 const fs = require('fs');
@@ -16,35 +16,49 @@ const client = new Client({
     ]
 });
 
-// Load cookies untuk bypass YouTube bot detection
-let cookiePath = '';
+// Load cookies dalam format header string
+let cookieHeader = '';
 const cookieTxtPath = path.join(__dirname, 'cookies.txt');
-const cookieJsonPath = path.join(__dirname, 'cookies.json');
 
 if (fs.existsSync(cookieTxtPath)) {
-    cookiePath = cookieTxtPath;
-    console.log('✅ YouTube cookies found: cookies.txt');
-} else if (fs.existsSync(cookieJsonPath)) {
-    cookiePath = cookieJsonPath;
-    console.log('✅ YouTube cookies found: cookies.json');
+    try {
+        const cookieData = fs.readFileSync(cookieTxtPath, 'utf-8');
+        const lines = cookieData.split('\n').filter(line => 
+            line.trim() && !line.startsWith('#')
+        );
+        
+        const cookies = lines.map(line => {
+            const parts = line.split('\t');
+            if (parts.length >= 7) {
+                return `${parts[5]}=${parts[6]}`;
+            }
+            return null;
+        }).filter(Boolean);
+        
+        cookieHeader = cookies.join('; ');
+        console.log(`✅ Loaded ${cookies.length} YouTube cookies`);
+    } catch (error) {
+        console.error('⚠️ Error loading cookies:', error.message);
+    }
 } else {
-    console.warn('⚠️ No cookies file found. Bot mungkin diblokir YouTube.');
+    console.warn('⚠️ No cookies.txt found');
 }
 
-// Setup DisTube dengan YtDlpPlugin (lebih powerful dari YouTubePlugin)
-const ytdlpOptions = {
-    update: false
-};
-
-// Tambahkan cookies jika ada
-if (cookiePath) {
-    ytdlpOptions.cookies = cookiePath;
-}
-
+// Setup DisTube dengan YouTubePlugin + cookie header
 const distube = new DisTube(client, {
     plugins: [
-        new SoundCloudPlugin(),
-        new YtDlpPlugin(ytdlpOptions)
+        new YouTubePlugin({
+            ytdlOptions: {
+                quality: 'highestaudio',
+                highWaterMark: 1 << 25,
+                requestOptions: {
+                    headers: {
+                        cookie: cookieHeader
+                    }
+                }
+            }
+        }),
+        new SoundCloudPlugin()
     ],
     ffmpeg: {
         path: ffmpeg
