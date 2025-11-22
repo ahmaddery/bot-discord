@@ -3,6 +3,8 @@ const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { DisTube } = require('distube');
 const ffmpeg = require('ffmpeg-static');
 const play = require('play-dl');
+const fs = require('fs');
+const path = require('path');
 
 const client = new Client({
     intents: [
@@ -12,6 +14,19 @@ const client = new Client({
         GatewayIntentBits.GuildVoiceStates
     ]
 });
+
+// Setup cookies untuk play-dl (bypass YouTube bot detection)
+const cookiesPath = path.join(__dirname, 'cookies.txt');
+if (fs.existsSync(cookiesPath)) {
+    play.setToken({
+        youtube: {
+            cookie: fs.readFileSync(cookiesPath, 'utf-8')
+        }
+    });
+    console.log('✅ YouTube cookies loaded');
+} else {
+    console.log('⚠️ Warning: cookies.txt not found. YouTube may block requests.');
+}
 
 // Custom plugin untuk play-dl
 class PlayDlPlugin {

@@ -6,6 +6,10 @@ node_modules/
 .env.local
 .env.*.local
 
+# YouTube cookies (uncomment to prevent upload)
+# cookies.txt
+# cookies.json
+
 # Logs
 logs
 *.log
