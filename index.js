@@ -1,8 +1,8 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { DisTube } = require('distube');
-const { YouTubePlugin } = require('@distube/youtube');
 const ffmpeg = require('ffmpeg-static');
+const play = require('play-dl');
 
 const client = new Client({
     intents: [
@@ -13,16 +13,25 @@ const client = new Client({
     ]
 });
 
-// Setup DisTube - Gunakan HANYA YouTubePlugin
+// Setup DisTube dengan custom play-dl resolver
 const distube = new DisTube(client, {
-    plugins: [
-        new YouTubePlugin()
-    ],
+    plugins: [],
+    customFilters: {},
     ffmpeg: {
         path: ffmpeg
     },
     emitNewSongOnly: false,
-    savePreviousSongs: true
+    savePreviousSongs: true,
+    // Custom stream dari play-dl
+    async customStream(url) {
+        try {
+            const stream = await play.stream(url);
+            return stream.stream;
+        } catch (error) {
+            console.error('Stream error:', error);
+            throw error;
+        }
+    }
 });
 
 client.once('clientReady', () => {
@@ -98,7 +107,20 @@ async function play_music(message, args) {
     try {
         const loadingMsg = await message.reply('🔍 Mencari lagu...');
         
-        await distube.play(voiceChannel, searchQuery, {
+        // Search atau get video info dengan play-dl
+        let videoUrl = searchQuery;
+        
+        // Jika bukan URL, search di YouTube
+        if (!searchQuery.includes('youtube.com') && !searchQuery.includes('youtu.be')) {
+            const searched = await play.search(searchQuery, { limit: 1 });
+            if (!searched || searched.length === 0) {
+                await loadingMsg.delete().catch(() => {});
+                return message.reply('❌ Tidak menemukan lagu!');
+            }
+            videoUrl = searched[0].url;
+        }
+        
+        await distube.play(voiceChannel, videoUrl, {
             textChannel: message.channel,
             member: message.member,
         });
@@ -109,15 +131,13 @@ async function play_music(message, args) {
         
         let errorMsg = '❌ Terjadi kesalahan saat mencoba memutar lagu!';
         
-        if (error.errorCode === 'VOICE_CONNECT_FAILED') {
-            errorMsg = '❌ Tidak dapat terhubung ke voice channel. Kemungkinan penyebab:\n' +
-                      '• **Firewall Windows** memblokir koneksi UDP (port 50000-65535)\n' +
-                      '• **Voice region server** bermasalah - coba ubah region di Server Settings > Overview\n' +
-                      '• **Antivirus** memblokir Discord voice connection\n\n' +
-                      '**Solusi:**\n' +
-                      '1. Ubah voice region server ke Singapore/Japan\n' +
-                      '2. Tambahkan Discord ke Windows Firewall whitelist\n' +
-                      '3. Restart Discord dan bot';
+        if (error.message && error.message.includes('bot')) {
+            errorMsg = '❌ YouTube memblokir bot. Coba:\n' +
+                      '1. Gunakan VPN\n' +
+                      '2. Restart bot\n' +
+                      '3. Coba video lain';
+        } else if (error.errorCode === 'VOICE_CONNECT_FAILED') {
+            errorMsg = '❌ Tidak dapat terhubung ke voice channel. Pastikan bot punya izin Connect dan Speak.';
         } else if (error.errorCode === 'VOICE_ALREADY_CREATED') {
             errorMsg = '❌ Bot sedang digunakan di voice channel lain. Ketik `joshua stop` terlebih dahulu.';
         }
