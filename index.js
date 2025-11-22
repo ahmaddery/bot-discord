@@ -18,12 +18,43 @@ const client = new Client({
 // Setup cookies untuk play-dl (bypass YouTube bot detection)
 const cookiesPath = path.join(__dirname, 'cookies.txt');
 if (fs.existsSync(cookiesPath)) {
-    play.setToken({
-        youtube: {
-            cookie: fs.readFileSync(cookiesPath, 'utf-8')
+    try {
+        const cookiesContent = fs.readFileSync(cookiesPath, 'utf-8');
+        
+        // Parse Netscape cookies format ke array
+        const cookies = cookiesContent
+            .split('\n')
+            .filter(line => line && !line.startsWith('#') && line.trim())
+            .map(line => {
+                const parts = line.split('\t');
+                if (parts.length >= 7) {
+                    return {
+                        domain: parts[0],
+                        flag: parts[1],
+                        path: parts[2],
+                        secure: parts[3],
+                        expiry: parts[4],
+                        name: parts[5],
+                        value: parts[6]
+                    };
+                }
+                return null;
+            })
+            .filter(cookie => cookie !== null);
+
+        // Set cookies untuk play-dl
+        if (cookies.length > 0) {
+            play.setToken({
+                youtube: { cookie: cookies }
+            });
+            console.log(`✅ YouTube cookies loaded (${cookies.length} cookies)`);
+        } else {
+            console.log('⚠️ Warning: No valid cookies found in cookies.txt');
         }
-    });
-    console.log('✅ YouTube cookies loaded');
+    } catch (error) {
+        console.error('❌ Error loading cookies:', error.message);
+        console.log('⚠️ Bot will run without cookies (may be blocked by YouTube)');
+    }
 } else {
     console.log('⚠️ Warning: cookies.txt not found. YouTube may block requests.');
 }
