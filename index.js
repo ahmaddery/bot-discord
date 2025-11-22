@@ -351,8 +351,8 @@ async function now_playing(message) {
         .setTitle('🎵 Sedang Diputar')
         .setDescription(`**[${song.name}](${song.url})**`)
         .addFields(
-            { name: '⏱️ Durasi', value: song.formattedDuration, inline: true },
-            { name: '👤 Diminta oleh', value: song.user.tag, inline: true },
+            { name: '⏱️ Durasi', value: song.formattedDuration || 'Unknown', inline: true },
+            { name: '👤 Diminta oleh', value: song.user?.tag || song.member?.user?.tag || 'Unknown', inline: true },
             { name: '📝 Queue', value: `${queue.songs.length} lagu`, inline: true }
         )
         .setThumbnail(song.thumbnail)
@@ -389,8 +389,8 @@ distube.on('playSong', (queue, song) => {
         .setTitle('▶️ Mulai memutar')
         .setDescription(`**[${song.name}](${song.url})**`)
         .addFields(
-            { name: '⏱️ Durasi', value: song.formattedDuration, inline: true },
-            { name: '👤 Diminta oleh', value: song.user.tag, inline: true }
+            { name: '⏱️ Durasi', value: song.formattedDuration || 'Unknown', inline: true },
+            { name: '👤 Diminta oleh', value: song.user?.tag || song.member?.user?.tag || 'Unknown', inline: true }
         )
         .setThumbnail(song.thumbnail)
         .setTimestamp();
@@ -404,8 +404,8 @@ distube.on('addSong', (queue, song) => {
         .setTitle('➕ Ditambahkan ke queue')
         .setDescription(`**[${song.name}](${song.url})**`)
         .addFields(
-            { name: '⏱️ Durasi', value: song.formattedDuration, inline: true },
-            { name: '👤 Diminta oleh', value: song.user.tag, inline: true },
+            { name: '⏱️ Durasi', value: song.formattedDuration || 'Unknown', inline: true },
+            { name: '👤 Diminta oleh', value: song.user?.tag || song.member?.user?.tag || 'Unknown', inline: true },
             { name: '📝 Posisi', value: `${queue.songs.length}`, inline: true }
         )
         .setThumbnail(song.thumbnail)
