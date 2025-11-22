@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const play = require('play-dl');
+const prism = require('prism-media');
 
 // Setup SoundCloud
 async function setupPlayDL() {
@@ -51,6 +52,7 @@ class Queue {
 class ServerSettings {
     constructor() {
         this.quality = 'high'; // default: high, options: low, medium, high
+        this.volume = 100; // default: 100%, range: 0-100
     }
 }
 
@@ -271,6 +273,7 @@ client.on('messageCreate', async (message) => {
                 { name: 'joshua queue', value: 'Menampilkan daftar lagu di queue', inline: false },
                 { name: 'joshua nowplaying (joshua np)', value: 'Menampilkan lagu yang sedang diputar', inline: false },
                 { name: 'joshua quality <low/medium/high>', value: 'Mengatur kualitas audio streaming', inline: false },
+                { name: 'joshua volume <0-100>', value: 'Mengatur volume global (persentase)', inline: false },
                 { name: 'joshua help', value: 'Menampilkan perintah ini', inline: false }
             )
             .setFooter({ text: 'Prefix: joshua' });
@@ -321,6 +324,50 @@ client.on('messageCreate', async (message) => {
 
         message.channel.send({ embeds: [embed] });
     }
+
+    // Command: joshua volume
+    if (command === 'volume' || command === 'vol' || command === 'v') {
+        const queue = queues.get(message.guild.id);
+        
+        if (!args.length) {
+            const settings = serverSettings.get(message.guild.id) || new ServerSettings();
+            const volumeBar = createVolumeBar(settings.volume);
+            return message.reply(`🔊 Volume saat ini: **${settings.volume}%**\n${volumeBar}\n\nGunakan: \`joshua volume <0-100>\``);
+        }
+
+        const volume = parseInt(args[0]);
+        
+        if (isNaN(volume) || volume < 0 || volume > 100) {
+            return message.reply('❌ Volume harus berupa angka antara 0-100!');
+        }
+
+        let settings = serverSettings.get(message.guild.id);
+        if (!settings) {
+            settings = new ServerSettings();
+            serverSettings.set(message.guild.id, settings);
+        }
+
+        settings.volume = volume;
+
+        // Jika ada lagu yang sedang diputar, update volume secara real-time
+        if (queue && queue.player && queue.isPlaying) {
+            // Note: Volume akan berlaku untuk lagu berikutnya karena audio resource sudah dibuat
+            message.channel.send('💡 Volume akan berlaku untuk lagu berikutnya. Gunakan `joshua skip` untuk menerapkan sekarang.');
+        }
+
+        const volumeEmoji = volume === 0 ? '🔇' : volume < 30 ? '🔉' : volume < 70 ? '🔊' : '🔊✨';
+        const volumeBar = createVolumeBar(volume);
+
+        const embed = new EmbedBuilder()
+            .setColor('#00FF00')
+            .setTitle(`${volumeEmoji} Volume Diatur`)
+            .setDescription(`Volume: **${volume}%**\n${volumeBar}`)
+            .addFields(
+                { name: '💡 Info', value: 'Pengaturan volume akan berlaku untuk lagu berikutnya', inline: false }
+            );
+
+        message.channel.send({ embeds: [embed] });
+    }
 });
 
 // Fungsi untuk memutar lagu
@@ -329,7 +376,7 @@ async function playSong(guild, song) {
     if (!queue) return;
 
     try {
-        // Dapatkan settings kualitas
+        // Dapatkan settings kualitas dan volume
         const settings = serverSettings.get(guild.id) || new ServerSettings();
         
         // Set kualitas berdasarkan settings
@@ -343,9 +390,19 @@ async function playSong(guild, song) {
             quality: qualityOptions[settings.quality] || 2
         });
         
+        // Hitung volume dalam skala logaritmik untuk hasil yang lebih natural
+        // Volume 0-100% dikonversi ke 0.0-1.0 dengan kurva logaritmik
+        const volumeLevel = settings.volume === 0 ? 0 : Math.pow(settings.volume / 100, 1.5);
+        
         const resource = createAudioResource(stream.stream, {
             inputType: stream.type,
+            inlineVolume: true
         });
+
+        // Set volume pada resource
+        if (resource.volume) {
+            resource.volume.setVolume(volumeLevel);
+        }
 
         queue.player.play(resource);
         queue.isPlaying = true;
@@ -357,6 +414,18 @@ async function playSong(guild, song) {
             playSong(guild, queue.songs[0]);
         }
     }
+}
+
+// Fungsi untuk membuat volume bar visual
+function createVolumeBar(volume) {
+    const barLength = 20;
+    const filledLength = Math.round((volume / 100) * barLength);
+    const emptyLength = barLength - filledLength;
+    
+    const filledBar = '█'.repeat(filledLength);
+    const emptyBar = '░'.repeat(emptyLength);
+    
+    return `\`${filledBar}${emptyBar}\` ${volume}%`;
 }
 
 // Format durasi

@@ -73,6 +73,7 @@ npm run dev
 | `joshua queue` | `joshua q` | Menampilkan daftar lagu di queue (max 10) |
 | `joshua nowplaying` | `joshua np` | Menampilkan lagu yang sedang diputar |
 | `joshua quality <low/medium/high>` | - | Mengatur kualitas audio streaming |
+| `joshua volume <0-100>` | `joshua vol`, `joshua v` | Mengatur volume global (persentase) |
 | `joshua help` | - | Menampilkan daftar perintah |
 
 ## 💡 Contoh Penggunaan
@@ -92,6 +93,14 @@ joshua play alan walker faded
 joshua quality high    # Kualitas terbaik (256 kbps)
 joshua quality medium  # Seimbang (128 kbps)
 joshua quality low     # Hemat bandwidth (64 kbps)
+```
+
+### Mengatur volume:
+```
+joshua volume 50   # Set volume ke 50%
+joshua volume 100  # Set volume ke 100% (maksimum)
+joshua volume 0    # Mute/diam
+joshua volume      # Cek volume saat ini
 ```
 
 ### Skip lagu:
