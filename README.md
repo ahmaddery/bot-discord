@@ -68,6 +68,7 @@ npm run dev
 ### ▶️ Playback Control
 | Perintah | Alias | Deskripsi |
 |----------|-------|-----------|
+| `joshua join` | `joshua summon` | Panggil bot ke voice channel |
 | `joshua play <url/query>` | `joshua p` | Memutar lagu dari SoundCloud URL atau melakukan pencarian |
 | `joshua pause` | - | Jeda lagu yang sedang diputar |
 | `joshua resume` | `joshua continue` | Lanjutkan lagu yang di-pause |
@@ -102,6 +103,7 @@ npm run dev
 
 ### Memutar & Kontrol Playback:
 ```
+joshua join           # Panggil bot ke voice channel
 joshua play https://soundcloud.com/artist/song-name
 joshua play alan walker faded
 joshua pause          # Jeda

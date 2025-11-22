@@ -71,6 +71,38 @@ client.once('clientReady', async () => {
     await setupPlayDL();
 });
 
+// Event ketika bot di-kick atau disconnect dari voice channel
+client.on('voiceStateUpdate', (oldState, newState) => {
+    // Cek jika bot sendiri yang disconnect/dikick
+    if (oldState.member.id === client.user.id && oldState.channelId && !newState.channelId) {
+        const queue = queues.get(oldState.guild.id);
+        
+        if (queue) {
+            // Cleanup queue dan stop player
+            console.log(`Bot dikick dari voice channel di guild: ${oldState.guild.name}`);
+            
+            if (queue.player) {
+                queue.player.stop();
+            }
+            
+            if (queue.connection) {
+                queue.connection.destroy();
+            }
+            
+            queues.delete(oldState.guild.id);
+            
+            // Kirim notifikasi ke text channel jika memungkinkan
+            const textChannel = oldState.guild.channels.cache.find(
+                channel => channel.type === 0 && channel.permissionsFor(client.user).has('SendMessages')
+            );
+            
+            if (textChannel) {
+                textChannel.send('👋 Bot di-disconnect dari voice channel. Gunakan `joshua join` untuk memanggil bot kembali!');
+            }
+        }
+    }
+});
+
 // Event ketika menerima pesan
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
@@ -78,6 +110,54 @@ client.on('messageCreate', async (message) => {
 
     const args = message.content.slice(7).trim().split(/ +/);
     const command = args.shift().toLowerCase();
+
+    // Command: joshua join
+    if (command === 'join' || command === 'summon') {
+        if (!message.member.voice.channel) {
+            return message.reply('❌ Kamu harus masuk ke voice channel terlebih dahulu!');
+        }
+
+        // Cek apakah bot sudah di voice channel
+        const existingQueue = queues.get(message.guild.id);
+        if (existingQueue && existingQueue.connection) {
+            return message.reply('✅ Bot sudah ada di voice channel! Gunakan `joshua play` untuk memutar musik.');
+        }
+
+        try {
+            // Join voice channel tanpa queue
+            const connection = joinVoiceChannel({
+                channelId: message.member.voice.channel.id,
+                guildId: message.guild.id,
+                adapterCreator: message.guild.voiceAdapterCreator,
+            });
+
+            const embed = new EmbedBuilder()
+                .setColor('#1DB954')
+                .setTitle('✅ Joined Voice Channel')
+                .setDescription(`Bot bergabung ke **${message.member.voice.channel.name}**`)
+                .addFields(
+                    { name: '🎵 Siap Memutar!', value: 'Gunakan `joshua play <lagu>` untuk mulai memutar musik', inline: false }
+                )
+                .setFooter({ text: 'joshua help untuk perintah lengkap' });
+
+            message.channel.send({ embeds: [embed] });
+
+            // Auto-disconnect setelah 5 menit jika tidak ada aktivitas
+            setTimeout(() => {
+                const queue = queues.get(message.guild.id);
+                if (!queue || !queue.isPlaying) {
+                    if (connection.state.status !== 'destroyed') {
+                        connection.destroy();
+                        message.channel.send('👋 Bot keluar dari voice channel karena tidak ada aktivitas.');
+                    }
+                }
+            }, 5 * 60 * 1000); // 5 menit
+
+        } catch (error) {
+            console.error(error);
+            message.reply('❌ Terjadi error saat join voice channel!');
+        }
+    }
 
     // Command: !play <url atau query>
     if (command === 'play' || command === 'p') {
@@ -536,6 +616,11 @@ client.on('messageCreate', async (message) => {
                 .setTitle('▶️ Playback Control')
                 .setDescription('Kontrol pemutaran musik dengan lengkap')
                 .addFields(
+                    {
+                        name: '`joshua join`',
+                        value: '**Alias:** `summon`\nPanggil bot ke voice channel kamu\n**Contoh:**\n```\njoshua join\njoshua summon```\n**Auto-disconnect:** 5 menit jika tidak ada aktivitas',
+                        inline: false
+                    },
                     {
                         name: '`joshua play <url/query>`',
                         value: '**Alias:** `p`\nPutar lagu dari URL SoundCloud atau pencarian\n**Contoh:**\n```\njoshua play https://soundcloud.com/...\njoshua play alan walker faded\njoshua p lofi hip hop```',
