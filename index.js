@@ -44,7 +44,7 @@ if (fs.existsSync(cookieTxtPath)) {
     console.warn('⚠️ No cookies.txt found');
 }
 
-// Setup DisTube dengan YouTubePlugin + cookie header
+// Setup DisTube dengan YouTubePlugin + cookie header + custom user agent
 const distube = new DisTube(client, {
     plugins: [
         new YouTubePlugin({
@@ -53,7 +53,9 @@ const distube = new DisTube(client, {
                 highWaterMark: 1 << 25,
                 requestOptions: {
                     headers: {
-                        cookie: cookieHeader
+                        'cookie': cookieHeader,
+                        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'accept-language': 'en-US,en;q=0.9'
                     }
                 }
             }
@@ -153,7 +155,12 @@ async function play_music(message, args) {
         let errorMsg = '❌ Terjadi kesalahan saat mencoba memutar lagu!';
         
         if (error.message && error.message.includes('bot')) {
-            errorMsg = '❌ YouTube memblokir bot. Coba lagi nanti atau gunakan VPN.';
+            errorMsg = '❌ **YouTube memblokir bot!**\n\n' +
+                      '**Solusi:**\n' +
+                      '1. Export cookies BARU dari browser (cookies mungkin expired)\n' +
+                      '2. Gunakan VPN di server Ubuntu\n' +
+                      '3. Coba SoundCloud: `joshua play https://soundcloud.com/link`\n\n' +
+                      'Tutorial export cookies: lihat README-COOKIES.md';
         } else if (error.errorCode === 'VOICE_CONNECT_FAILED') {
             errorMsg = '❌ Tidak dapat terhubung ke voice channel. Pastikan bot punya izin Connect dan Speak.';
         } else if (error.errorCode === 'VOICE_ALREADY_CREATED') {
@@ -297,7 +304,7 @@ async function show_help(message) {
         .setTitle('🎵 Bot Music - Panduan Perintah')
         .setDescription('Berikut adalah daftar perintah yang tersedia:')
         .addFields(
-            { name: '▶️ joshua play <judul/URL>', value: 'Memutar lagu dari YouTube\nAlias: joshua p', inline: false },
+            { name: '▶️ joshua play <judul/URL>', value: 'Memutar lagu dari YouTube atau SoundCloud\nContoh: `joshua play Dewa 19`\nContoh: `joshua play https://soundcloud.com/link`\nAlias: joshua p', inline: false },
             { name: '⏭️ joshua skip', value: 'Melewati lagu yang sedang diputar\nAlias: joshua s', inline: false },
             { name: '⏹️ joshua stop', value: 'Menghentikan musik dan keluar dari VC\nAlias: joshua leave', inline: false },
             { name: '⏸️ joshua pause', value: 'Mem-pause lagu yang sedang diputar', inline: false },
@@ -306,7 +313,7 @@ async function show_help(message) {
             { name: '🎵 joshua nowplaying', value: 'Menampilkan lagu yang sedang diputar\nAlias: joshua np', inline: false },
             { name: '❓ joshua help', value: 'Menampilkan panduan ini', inline: false }
         )
-        .setFooter({ text: '💡 Tip: Gunakan prefix "joshua" sebelum setiap perintah' })
+        .setFooter({ text: '💡 Tip: YouTube diblokir? Gunakan SoundCloud!' })
         .setTimestamp();
     
     message.channel.send({ embeds: [embed] });
