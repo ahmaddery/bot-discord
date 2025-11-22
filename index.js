@@ -3,6 +3,24 @@ const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const play = require('play-dl');
 
+// Setup SoundCloud
+async function setupPlayDL() {
+    try {
+        // Inisialisasi play-dl untuk SoundCloud
+        await play.getFreeClientID().then((clientID) => {
+            play.setToken({
+                soundcloud: {
+                    client_id: clientID
+                }
+            });
+        });
+        console.log('✅ SoundCloud client ID berhasil diinisialisasi');
+    } catch (error) {
+        console.error('⚠️ Warning: Tidak bisa mendapatkan SoundCloud client ID:', error.message);
+        console.log('Bot akan tetap berjalan dengan fitur terbatas');
+    }
+}
+
 // Inisialisasi bot
 const client = new Client({
     intents: [
@@ -27,9 +45,12 @@ class Queue {
 }
 
 // Event ketika bot siap
-client.once('ready', () => {
+client.once('clientReady', async () => {
     console.log(`✅ Bot ${client.user.tag} sudah online!`);
     client.user.setActivity('🎵 joshua help untuk perintah', { type: 'LISTENING' });
+    
+    // Setup play-dl setelah bot siap
+    await setupPlayDL();
 });
 
 // Event ketika menerima pesan
@@ -58,10 +79,19 @@ client.on('messageCreate', async (message) => {
             // Cek apakah input adalah URL SoundCloud
             let songInfo;
             if (query.includes('soundcloud.com')) {
+                // Validasi URL SoundCloud
+                const scValidate = await play.so_validate(query);
+                if (scValidate === false) {
+                    return message.reply('❌ URL SoundCloud tidak valid!');
+                }
                 songInfo = await play.soundcloud(query);
             } else {
                 // Jika bukan URL, search di SoundCloud
-                const searched = await play.search(query, { source: { soundcloud: 'tracks' }, limit: 1 });
+                const searched = await play.search(query, { 
+                    source: { soundcloud: 'tracks' }, 
+                    limit: 1 
+                });
+                
                 if (!searched || searched.length === 0) {
                     return message.reply('❌ Tidak menemukan lagu dengan query tersebut!');
                 }
@@ -143,7 +173,11 @@ client.on('messageCreate', async (message) => {
 
         } catch (error) {
             console.error(error);
-            message.reply('❌ Terjadi error saat memproses lagu! Pastikan URL SoundCloud valid atau coba query pencarian.');
+            const errorMsg = error.message || 'Unknown error';
+            if (errorMsg.includes('client_id') || errorMsg.includes('SoundCloud')) {
+                return message.reply('❌ Terjadi error dengan SoundCloud! Coba lagi dalam beberapa saat atau gunakan URL SoundCloud langsung.');
+            }
+            message.reply('❌ Terjadi error saat memproses lagu! Pastikan URL SoundCloud valid atau coba query pencarian yang lebih spesifik.');
         }
     }
 
