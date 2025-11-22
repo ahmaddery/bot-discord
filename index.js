@@ -43,8 +43,8 @@ if (cookiePath) {
 
 const distube = new DisTube(client, {
     plugins: [
-        new YtDlpPlugin(ytdlpOptions),
-        new SoundCloudPlugin()
+        new SoundCloudPlugin(),
+        new YtDlpPlugin(ytdlpOptions)
     ],
     ffmpeg: {
         path: ffmpeg
