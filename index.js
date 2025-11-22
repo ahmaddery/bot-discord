@@ -1,7 +1,6 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { DisTube } = require('distube');
-const { YtDlpPlugin } = require('@distube/yt-dlp');
 const { YouTubePlugin } = require('@distube/youtube');
 const ffmpeg = require('ffmpeg-static');
 
@@ -14,24 +13,10 @@ const client = new Client({
     ]
 });
 
-// Setup DisTube - Gunakan YouTubePlugin dan YtDlpPlugin sebagai fallback
+// Setup DisTube - Gunakan HANYA YouTubePlugin
 const distube = new DisTube(client, {
     plugins: [
-        new YouTubePlugin(),
-        new YtDlpPlugin({
-            update: false,
-            ytdlArgs: [
-                '--format', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio',
-                '--no-warnings',
-                '--no-check-certificates',
-                '--prefer-free-formats',
-                '--no-playlist',
-                '--default-search', 'ytsearch',
-                '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                // Uncomment jika sudah punya cookies.txt
-                // '--cookies', './cookies.txt'
-            ]
-        })
+        new YouTubePlugin()
     ],
     ffmpeg: {
         path: ffmpeg
