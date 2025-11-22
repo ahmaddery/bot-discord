@@ -16,12 +16,30 @@ const client = new Client({
 });
 
 // Setup cookies untuk play-dl (bypass YouTube bot detection)
-const cookiesPath = path.join(__dirname, 'cookies.txt');
-if (fs.existsSync(cookiesPath)) {
+const cookiesTxtPath = path.join(__dirname, 'cookies.txt');
+const cookiesJsonPath = path.join(__dirname, 'cookies.json');
+
+if (fs.existsSync(cookiesJsonPath)) {
     try {
-        const cookiesContent = fs.readFileSync(cookiesPath, 'utf-8');
+        // Load cookies dari JSON (dari EditThisCookie)
+        const cookiesJson = JSON.parse(fs.readFileSync(cookiesJsonPath, 'utf-8'));
+        const cookieString = cookiesJson
+            .map(cookie => `${cookie.name}=${cookie.value}`)
+            .join('; ');
         
-        // Parse Netscape cookies format ke string format play-dl
+        play.setToken({
+            youtube: { cookie: cookieString }
+        });
+        console.log(`✅ YouTube cookies loaded from JSON (${cookiesJson.length} cookies)`);
+    } catch (error) {
+        console.error('❌ Error loading cookies.json:', error.message);
+        console.log('⚠️ Bot will run without cookies (may be blocked by YouTube)');
+    }
+} else if (fs.existsSync(cookiesTxtPath)) {
+    try {
+        // Load cookies dari TXT (Netscape format)
+        const cookiesContent = fs.readFileSync(cookiesTxtPath, 'utf-8');
+        
         const cookieLines = cookiesContent
             .split('\n')
             .filter(line => line && !line.startsWith('#') && line.trim())
@@ -36,22 +54,22 @@ if (fs.existsSync(cookiesPath)) {
             })
             .filter(cookie => cookie !== null);
 
-        // Set cookies untuk play-dl (format: "name=value; name2=value2")
         if (cookieLines.length > 0) {
             const cookieString = cookieLines.join('; ');
             play.setToken({
                 youtube: { cookie: cookieString }
             });
-            console.log(`✅ YouTube cookies loaded (${cookieLines.length} cookies)`);
+            console.log(`✅ YouTube cookies loaded from TXT (${cookieLines.length} cookies)`);
         } else {
             console.log('⚠️ Warning: No valid cookies found in cookies.txt');
         }
     } catch (error) {
-        console.error('❌ Error loading cookies:', error.message);
+        console.error('❌ Error loading cookies.txt:', error.message);
         console.log('⚠️ Bot will run without cookies (may be blocked by YouTube)');
     }
 } else {
-    console.log('⚠️ Warning: cookies.txt not found. YouTube may block requests.');
+    console.log('⚠️ Warning: cookies.txt/json not found. YouTube may block requests.');
+    console.log('💡 Tip: Export cookies dari YouTube untuk menghindari bot detection.');
 }
 
 // Custom plugin untuk play-dl
