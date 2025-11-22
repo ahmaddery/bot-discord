@@ -17,6 +17,11 @@ const client = new Client({
 class PlayDlPlugin {
     constructor() {
         this.type = 'play-dl';
+        this.source = 'youtube';
+    }
+
+    init(distube) {
+        this.distube = distube;
     }
 
     async validate(url) {
