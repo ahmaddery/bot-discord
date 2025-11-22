@@ -1,10 +1,8 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { DisTube } = require('distube');
+const { YouTubePlugin } = require('@distube/youtube');
 const ffmpeg = require('ffmpeg-static');
-const play = require('play-dl');
-const fs = require('fs');
-const path = require('path');
 
 const client = new Client({
     intents: [
@@ -15,106 +13,11 @@ const client = new Client({
     ]
 });
 
-// Setup cookies untuk play-dl (bypass YouTube bot detection)
-const cookiesTxtPath = path.join(__dirname, 'cookies.txt');
-const cookiesJsonPath = path.join(__dirname, 'cookies.json');
-
-if (fs.existsSync(cookiesJsonPath)) {
-    try {
-        // Load cookies dari JSON (dari EditThisCookie)
-        const cookiesJson = JSON.parse(fs.readFileSync(cookiesJsonPath, 'utf-8'));
-        const cookieString = cookiesJson
-            .map(cookie => `${cookie.name}=${cookie.value}`)
-            .join('; ');
-        
-        play.setToken({
-            youtube: { cookie: cookieString }
-        });
-        console.log(`✅ YouTube cookies loaded from JSON (${cookiesJson.length} cookies)`);
-    } catch (error) {
-        console.error('❌ Error loading cookies.json:', error.message);
-        console.log('⚠️ Bot will run without cookies (may be blocked by YouTube)');
-    }
-} else if (fs.existsSync(cookiesTxtPath)) {
-    try {
-        // Load cookies dari TXT (Netscape format)
-        const cookiesContent = fs.readFileSync(cookiesTxtPath, 'utf-8');
-        
-        const cookieLines = cookiesContent
-            .split('\n')
-            .filter(line => line && !line.startsWith('#') && line.trim())
-            .map(line => {
-                const parts = line.split('\t');
-                if (parts.length >= 7) {
-                    const name = parts[5];
-                    const value = parts[6];
-                    return `${name}=${value}`;
-                }
-                return null;
-            })
-            .filter(cookie => cookie !== null);
-
-        if (cookieLines.length > 0) {
-            const cookieString = cookieLines.join('; ');
-            play.setToken({
-                youtube: { cookie: cookieString }
-            });
-            console.log(`✅ YouTube cookies loaded from TXT (${cookieLines.length} cookies)`);
-        } else {
-            console.log('⚠️ Warning: No valid cookies found in cookies.txt');
-        }
-    } catch (error) {
-        console.error('❌ Error loading cookies.txt:', error.message);
-        console.log('⚠️ Bot will run without cookies (may be blocked by YouTube)');
-    }
-} else {
-    console.log('⚠️ Warning: cookies.txt/json not found. YouTube may block requests.');
-    console.log('💡 Tip: Export cookies dari YouTube untuk menghindari bot detection.');
-}
-
-// Custom plugin untuk play-dl
-class PlayDlPlugin {
-    constructor() {
-        this.type = 'play-dl';
-        this.source = 'youtube';
-    }
-
-    init(distube) {
-        this.distube = distube;
-    }
-
-    async validate(url) {
-        return play.yt_validate(url) === 'video';
-    }
-
-    async resolve(url) {
-        const info = await play.video_info(url);
-        const video = info.video_details;
-        
-        return {
-            source: 'youtube',
-            name: video.title,
-            url: video.url,
-            duration: video.durationInSec,
-            thumbnail: video.thumbnails[0].url,
-            views: video.views,
-            likes: video.likes,
-            uploader: {
-                name: video.channel.name,
-                url: video.channel.url
-            }
-        };
-    }
-
-    async getStreamURL(url) {
-        const stream = await play.stream(url);
-        return stream.stream;
-    }
-}
-
-// Setup DisTube dengan play-dl plugin
+// Setup DisTube dengan YouTubePlugin resmi (lebih stabil)
 const distube = new DisTube(client, {
-    plugins: [new PlayDlPlugin()],
+    plugins: [
+        new YouTubePlugin()
+    ],
     ffmpeg: {
         path: ffmpeg
     },
@@ -195,20 +98,8 @@ async function play_music(message, args) {
     try {
         const loadingMsg = await message.reply('🔍 Mencari lagu...');
         
-        // Search atau get video info dengan play-dl
-        let videoUrl = searchQuery;
-        
-        // Jika bukan URL, search di YouTube
-        if (!searchQuery.includes('youtube.com') && !searchQuery.includes('youtu.be')) {
-            const searched = await play.search(searchQuery, { limit: 1 });
-            if (!searched || searched.length === 0) {
-                await loadingMsg.delete().catch(() => {});
-                return message.reply('❌ Tidak menemukan lagu!');
-            }
-            videoUrl = searched[0].url;
-        }
-        
-        await distube.play(voiceChannel, videoUrl, {
+        // DisTube akan handle search otomatis
+        await distube.play(voiceChannel, searchQuery, {
             textChannel: message.channel,
             member: message.member,
         });
@@ -220,10 +111,7 @@ async function play_music(message, args) {
         let errorMsg = '❌ Terjadi kesalahan saat mencoba memutar lagu!';
         
         if (error.message && error.message.includes('bot')) {
-            errorMsg = '❌ YouTube memblokir bot. Coba:\n' +
-                      '1. Gunakan VPN\n' +
-                      '2. Restart bot\n' +
-                      '3. Coba video lain';
+            errorMsg = '❌ YouTube memblokir bot. Coba lagi nanti atau gunakan VPN.';
         } else if (error.errorCode === 'VOICE_CONNECT_FAILED') {
             errorMsg = '❌ Tidak dapat terhubung ke voice channel. Pastikan bot punya izin Connect dan Speak.';
         } else if (error.errorCode === 'VOICE_ALREADY_CREATED') {
