@@ -13,25 +13,49 @@ const client = new Client({
     ]
 });
 
-// Setup DisTube dengan custom play-dl resolver
+// Custom plugin untuk play-dl
+class PlayDlPlugin {
+    constructor() {
+        this.type = 'play-dl';
+    }
+
+    async validate(url) {
+        return play.yt_validate(url) === 'video';
+    }
+
+    async resolve(url) {
+        const info = await play.video_info(url);
+        const video = info.video_details;
+        
+        return {
+            source: 'youtube',
+            name: video.title,
+            url: video.url,
+            duration: video.durationInSec,
+            thumbnail: video.thumbnails[0].url,
+            views: video.views,
+            likes: video.likes,
+            uploader: {
+                name: video.channel.name,
+                url: video.channel.url
+            }
+        };
+    }
+
+    async getStreamURL(url) {
+        const stream = await play.stream(url);
+        return stream.stream;
+    }
+}
+
+// Setup DisTube dengan play-dl plugin
 const distube = new DisTube(client, {
-    plugins: [],
-    customFilters: {},
+    plugins: [new PlayDlPlugin()],
     ffmpeg: {
         path: ffmpeg
     },
     emitNewSongOnly: false,
-    savePreviousSongs: true,
-    // Custom stream dari play-dl
-    async customStream(url) {
-        try {
-            const stream = await play.stream(url);
-            return stream.stream;
-        } catch (error) {
-            console.error('Stream error:', error);
-            throw error;
-        }
-    }
+    savePreviousSongs: true
 });
 
 client.once('clientReady', () => {
