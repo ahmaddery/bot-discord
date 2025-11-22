@@ -72,6 +72,8 @@ npm run dev
 | `joshua stop` | - | Berhenti memutar dan keluar dari voice channel |
 | `joshua queue` | `joshua q` | Menampilkan daftar lagu di queue (max 10) |
 | `joshua nowplaying` | `joshua np` | Menampilkan lagu yang sedang diputar |
+| `joshua shuffle` | `joshua mix` | Mengacak queue dengan algoritma pintar |
+| `joshua unshuffle` | `joshua unmix` | Kembalikan queue ke urutan asli |
 | `joshua quality <low/medium/high>` | - | Mengatur kualitas audio streaming |
 | `joshua volume <0-100>` | `joshua vol`, `joshua v` | Mengatur volume global (persentase) |
 | `joshua help` | - | Menampilkan daftar perintah |
@@ -87,6 +89,18 @@ joshua play https://soundcloud.com/artist/song-name
 ```
 joshua play alan walker faded
 ```
+
+### Shuffle pintar (seperti Spotify):
+```
+joshua shuffle    # Acak queue dengan algoritma pintar
+joshua unshuffle  # Kembalikan ke urutan asli
+```
+
+**Fitur Shuffle Pintar:**
+- 🎯 Mencegah artis yang sama muncul berurutan
+- 🔄 Hindari lagu yang baru diputar
+- 📊 Distribusi yang lebih merata dan natural
+- 💫 Mirip algoritma Spotify & Apple Music
 
 ### Mengatur kualitas audio:
 ```

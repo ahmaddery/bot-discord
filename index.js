@@ -45,6 +45,9 @@ class Queue {
         this.connection = null;
         this.player = null;
         this.isPlaying = false;
+        this.originalQueue = []; // Simpan queue asli untuk shuffle
+        this.isShuffled = false;
+        this.playHistory = []; // Track lagu yang sudah diputar untuk shuffle pintar
     }
 }
 
@@ -135,6 +138,15 @@ client.on('messageCreate', async (message) => {
 
                 // Event ketika lagu selesai
                 queue.player.on(AudioPlayerStatus.Idle, () => {
+                    // Tambahkan lagu yang baru selesai ke history
+                    if (queue.songs.length > 0) {
+                        queue.playHistory.push(queue.songs[0]);
+                        // Batasi history hanya 10 lagu terakhir
+                        if (queue.playHistory.length > 10) {
+                            queue.playHistory.shift();
+                        }
+                    }
+                    
                     queue.songs.shift();
                     if (queue.songs.length > 0) {
                         playSong(message.guild, queue.songs[0]);
@@ -218,13 +230,15 @@ client.on('messageCreate', async (message) => {
         message.channel.send('⏹️ Berhenti memutar musik dan keluar dari voice channel!');
     }
 
-    // Command: !queue
+    // Command: joshua queue
     if (command === 'queue' || command === 'q') {
         const queue = queues.get(message.guild.id);
         if (!queue || queue.songs.length === 0) {
             return message.reply('❌ Queue kosong!');
         }
 
+        const shuffleStatus = queue.isShuffled ? '🔀 Shuffle: ON' : '▶️ Shuffle: OFF';
+        
         const embed = new EmbedBuilder()
             .setColor('#0099FF')
             .setTitle('📋 Queue Lagu')
@@ -234,7 +248,7 @@ client.on('messageCreate', async (message) => {
                     .map((song, index) => `**${index + 1}.** [${song.title}](${song.url}) - \`${song.duration}\``)
                     .join('\n')
             )
-            .setFooter({ text: `Total: ${queue.songs.length} lagu` });
+            .setFooter({ text: `Total: ${queue.songs.length} lagu | ${shuffleStatus}` });
 
         message.channel.send({ embeds: [embed] });
     }
@@ -272,6 +286,8 @@ client.on('messageCreate', async (message) => {
                 { name: 'joshua stop', value: 'Berhenti memutar dan keluar dari voice channel', inline: false },
                 { name: 'joshua queue', value: 'Menampilkan daftar lagu di queue', inline: false },
                 { name: 'joshua nowplaying (joshua np)', value: 'Menampilkan lagu yang sedang diputar', inline: false },
+                { name: 'joshua shuffle', value: 'Mengacak queue dengan algoritma pintar', inline: false },
+                { name: 'joshua unshuffle', value: 'Kembalikan ke urutan asli', inline: false },
                 { name: 'joshua quality <low/medium/high>', value: 'Mengatur kualitas audio streaming', inline: false },
                 { name: 'joshua volume <0-100>', value: 'Mengatur volume global (persentase)', inline: false },
                 { name: 'joshua help', value: 'Menampilkan perintah ini', inline: false }
@@ -320,6 +336,73 @@ client.on('messageCreate', async (message) => {
             .addFields(
                 { name: 'Info', value: qualityDescriptions[quality], inline: false },
                 { name: '💡 Catatan', value: 'Pengaturan akan berlaku untuk lagu berikutnya', inline: false }
+            );
+
+        message.channel.send({ embeds: [embed] });
+    }
+
+    // Command: joshua shuffle
+    if (command === 'shuffle' || command === 'mix') {
+        const queue = queues.get(message.guild.id);
+        if (!queue || queue.songs.length <= 2) {
+            return message.reply('❌ Minimal harus ada 3 lagu di queue untuk shuffle!');
+        }
+
+        // Simpan queue asli jika belum pernah di-shuffle
+        if (!queue.isShuffled) {
+            queue.originalQueue = [...queue.songs];
+        }
+
+        // Pisahkan lagu yang sedang diputar (index 0) dan sisa queue
+        const currentSong = queue.songs[0];
+        const remainingSongs = queue.songs.slice(1);
+
+        // Shuffle pintar menggunakan algoritma Fisher-Yates dengan penyesuaian
+        const shuffled = smartShuffle(remainingSongs, queue.playHistory);
+
+        // Gabungkan lagu yang sedang diputar dengan queue yang sudah di-shuffle
+        queue.songs = [currentSong, ...shuffled];
+        queue.isShuffled = true;
+
+        const embed = new EmbedBuilder()
+            .setColor('#9B59B6')
+            .setTitle('🔀 Queue Di-shuffle!')
+            .setDescription(`Berhasil mengacak **${remainingSongs.length}** lagu dengan algoritma pintar`)
+            .addFields(
+                { name: '🎯 Fitur Shuffle Pintar', value: '• Mencegah lagu artis sama berurutan\n• Distribusi merata\n• Hindari pengulangan cepat', inline: false },
+                { name: '💡 Tip', value: 'Gunakan `joshua unshuffle` untuk kembali ke urutan asli', inline: false }
+            );
+
+        message.channel.send({ embeds: [embed] });
+    }
+
+    // Command: joshua unshuffle
+    if (command === 'unshuffle' || command === 'unmix') {
+        const queue = queues.get(message.guild.id);
+        if (!queue || !queue.isShuffled) {
+            return message.reply('❌ Queue tidak dalam mode shuffle!');
+        }
+
+        // Kembalikan ke queue asli, tapi keep lagu yang sedang diputar
+        const currentSong = queue.songs[0];
+        const currentIndex = queue.originalQueue.findIndex(s => s.url === currentSong.url);
+        
+        if (currentIndex !== -1) {
+            // Kembalikan dari posisi lagu saat ini
+            queue.songs = queue.originalQueue.slice(currentIndex);
+        } else {
+            // Jika tidak ditemukan, kembalikan seluruh queue asli
+            queue.songs = [...queue.originalQueue];
+        }
+
+        queue.isShuffled = false;
+
+        const embed = new EmbedBuilder()
+            .setColor('#3498DB')
+            .setTitle('↩️ Shuffle Dimatikan')
+            .setDescription('Queue dikembalikan ke urutan asli')
+            .addFields(
+                { name: '📋 Info', value: `${queue.songs.length} lagu dalam urutan normal`, inline: false }
             );
 
         message.channel.send({ embeds: [embed] });
@@ -426,6 +509,63 @@ function createVolumeBar(volume) {
     const emptyBar = '░'.repeat(emptyLength);
     
     return `\`${filledBar}${emptyBar}\` ${volume}%`;
+}
+
+// Algoritma shuffle pintar seperti Spotify
+function smartShuffle(songs, playHistory = []) {
+    if (songs.length <= 1) return songs;
+
+    // Clone array untuk tidak memodifikasi original
+    const shuffled = [];
+    const remaining = [...songs];
+    
+    // Fisher-Yates shuffle dengan penyesuaian pintar
+    while (remaining.length > 0) {
+        let selectedIndex = -1;
+        let attempts = 0;
+        const maxAttempts = 50;
+
+        // Coba cari lagu yang cocok dengan kriteria
+        while (attempts < maxAttempts && selectedIndex === -1) {
+            const randomIndex = Math.floor(Math.random() * remaining.length);
+            const candidate = remaining[randomIndex];
+            
+            // Kriteria 1: Jangan pilih lagu yang baru saja diputar (dari history)
+            const isInRecentHistory = playHistory.slice(-3).some(h => h.url === candidate.url);
+            
+            // Kriteria 2: Jika ada lagu sebelumnya di shuffled, coba hindari artis yang sama berurutan
+            let isDifferentFromLast = true;
+            if (shuffled.length > 0) {
+                const lastSong = shuffled[shuffled.length - 1];
+                // Extract artist dari title (biasanya format "Artist - Song")
+                const lastArtist = lastSong.title.split('-')[0].trim().toLowerCase();
+                const candidateArtist = candidate.title.split('-')[0].trim().toLowerCase();
+                
+                // Jika masih banyak pilihan, hindari artis yang sama
+                if (remaining.length > 3) {
+                    isDifferentFromLast = lastArtist !== candidateArtist;
+                }
+            }
+
+            // Terima kandidat jika memenuhi kriteria atau sudah terlalu banyak attempts
+            if ((!isInRecentHistory && isDifferentFromLast) || attempts > maxAttempts - 10) {
+                selectedIndex = randomIndex;
+            }
+
+            attempts++;
+        }
+
+        // Jika tidak menemukan kandidat ideal, ambil random
+        if (selectedIndex === -1) {
+            selectedIndex = Math.floor(Math.random() * remaining.length);
+        }
+
+        // Pindahkan lagu terpilih ke shuffled array
+        shuffled.push(remaining[selectedIndex]);
+        remaining.splice(selectedIndex, 1);
+    }
+
+    return shuffled;
 }
 
 // Format durasi
