@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { DisTube } = require('distube');
 const { YtDlpPlugin } = require('@distube/yt-dlp');
+const { SoundCloudPlugin } = require('@distube/soundcloud');
 const ffmpeg = require('ffmpeg-static');
 const fs = require('fs');
 const path = require('path');
@@ -31,13 +32,19 @@ if (fs.existsSync(cookieTxtPath)) {
 }
 
 // Setup DisTube dengan YtDlpPlugin (lebih powerful dari YouTubePlugin)
+const ytdlpOptions = {
+    update: false
+};
+
+// Tambahkan cookies jika ada
+if (cookiePath) {
+    ytdlpOptions.cookies = cookiePath;
+}
+
 const distube = new DisTube(client, {
     plugins: [
-        new YtDlpPlugin({
-            update: false,
-            cookiesFromBrowser: cookiePath ? undefined : 'chrome',
-            cookies: cookiePath || undefined
-        })
+        new YtDlpPlugin(ytdlpOptions),
+        new SoundCloudPlugin()
     ],
     ffmpeg: {
         path: ffmpeg
