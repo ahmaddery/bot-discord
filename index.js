@@ -48,6 +48,9 @@ class Queue {
         this.originalQueue = []; // Simpan queue asli untuk shuffle
         this.isShuffled = false;
         this.playHistory = []; // Track lagu yang sudah diputar untuk shuffle pintar
+        this.isPaused = false;
+        this.repeatMode = 'off'; // off, song, queue
+        this.autoplay = false; // Autoplay lagu similar
     }
 }
 
@@ -138,20 +141,44 @@ client.on('messageCreate', async (message) => {
 
                 // Event ketika lagu selesai
                 queue.player.on(AudioPlayerStatus.Idle, () => {
-                    // Tambahkan lagu yang baru selesai ke history
-                    if (queue.songs.length > 0) {
-                        queue.playHistory.push(queue.songs[0]);
-                        // Batasi history hanya 10 lagu terakhir
-                        if (queue.playHistory.length > 10) {
-                            queue.playHistory.shift();
-                        }
+                    if (queue.songs.length === 0) {
+                        queue.isPlaying = false;
+                        return;
                     }
-                    
-                    queue.songs.shift();
-                    if (queue.songs.length > 0) {
+
+                    // Handle repeat modes
+                    if (queue.repeatMode === 'song') {
+                        // Repeat lagu saat ini
+                        playSong(message.guild, queue.songs[0]);
+                    } else if (queue.repeatMode === 'queue' && queue.songs.length === 1) {
+                        // Jika repeat queue dan ini lagu terakhir, restart queue
+                        if (queue.originalQueue.length > 0 && queue.isShuffled) {
+                            queue.songs = [...queue.originalQueue];
+                        } else if (queue.playHistory.length > 0) {
+                            queue.songs = [...queue.playHistory, queue.songs[0]];
+                            queue.playHistory = [];
+                        }
                         playSong(message.guild, queue.songs[0]);
                     } else {
-                        queue.isPlaying = false;
+                        // Normal mode atau repeat queue dengan lagu masih ada
+                        if (queue.songs.length > 0) {
+                            queue.playHistory.push(queue.songs[0]);
+                            if (queue.playHistory.length > 10) {
+                                queue.playHistory.shift();
+                            }
+                        }
+                        
+                        queue.songs.shift();
+                        if (queue.songs.length > 0) {
+                            playSong(message.guild, queue.songs[0]);
+                        } else if (queue.repeatMode === 'queue' && queue.playHistory.length > 0) {
+                            // Restart queue untuk repeat mode
+                            queue.songs = [...queue.playHistory];
+                            queue.playHistory = [];
+                            playSong(message.guild, queue.songs[0]);
+                        } else {
+                            queue.isPlaying = false;
+                        }
                     }
                 });
 
@@ -205,18 +232,171 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // Command: !skip
+    // Command: joshua skip
     if (command === 'skip' || command === 's') {
         const queue = queues.get(message.guild.id);
         if (!queue || !queue.isPlaying) {
             return message.reply('❌ Tidak ada lagu yang sedang diputar!');
         }
 
+        const wasRepeatingSong = queue.repeatMode === 'song';
+        if (wasRepeatingSong) {
+            queue.repeatMode = 'off';
+        }
+
         queue.player.stop();
-        message.channel.send('⏭️ Melewati lagu...');
+        
+        const nextSong = queue.songs[1];
+        const skipMsg = nextSong ? `⏭️ Melewati lagu... Next: **${nextSong.title}**` : '⏭️ Melewati lagu...';
+        message.channel.send(skipMsg);
     }
 
-    // Command: !stop
+    // Command: joshua pause
+    if (command === 'pause') {
+        const queue = queues.get(message.guild.id);
+        if (!queue || !queue.isPlaying) {
+            return message.reply('❌ Tidak ada lagu yang sedang diputar!');
+        }
+
+        if (queue.isPaused) {
+            return message.reply('⏸️ Lagu sudah di-pause!');
+        }
+
+        queue.player.pause();
+        queue.isPaused = true;
+        message.channel.send('⏸️ Lagu di-pause. Gunakan `joshua resume` untuk melanjutkan.');
+    }
+
+    // Command: joshua resume
+    if (command === 'resume' || command === 'continue') {
+        const queue = queues.get(message.guild.id);
+        if (!queue || !queue.isPlaying) {
+            return message.reply('❌ Tidak ada lagu yang sedang diputar!');
+        }
+
+        if (!queue.isPaused) {
+            return message.reply('▶️ Lagu sudah sedang diputar!');
+        }
+
+        queue.player.unpause();
+        queue.isPaused = false;
+        message.channel.send('▶️ Lagu dilanjutkan!');
+    }
+
+    // Command: joshua repeat/loop
+    if (command === 'repeat' || command === 'loop') {
+        const queue = queues.get(message.guild.id);
+        if (!queue || queue.songs.length === 0) {
+            return message.reply('❌ Tidak ada lagu di queue!');
+        }
+
+        const modes = ['off', 'song', 'queue'];
+        const currentIndex = modes.indexOf(queue.repeatMode);
+        const nextMode = args[0]?.toLowerCase();
+
+        if (nextMode && modes.includes(nextMode)) {
+            queue.repeatMode = nextMode;
+        } else {
+            queue.repeatMode = modes[(currentIndex + 1) % modes.length];
+        }
+
+        const modeEmojis = {
+            off: '➡️',
+            song: '🔂',
+            queue: '🔁'
+        };
+
+        const modeDescriptions = {
+            off: 'Loop dimatikan',
+            song: 'Repeat lagu saat ini',
+            queue: 'Repeat seluruh queue'
+        };
+
+        const embed = new EmbedBuilder()
+            .setColor('#1DB954')
+            .setTitle(`${modeEmojis[queue.repeatMode]} Mode Repeat`)
+            .setDescription(modeDescriptions[queue.repeatMode])
+            .addFields(
+                { name: '💡 Tip', value: 'Gunakan `joshua repeat <off/song/queue>` untuk set mode tertentu', inline: false }
+            );
+
+        message.channel.send({ embeds: [embed] });
+    }
+
+    // Command: joshua clear
+    if (command === 'clear' || command === 'clearqueue') {
+        const queue = queues.get(message.guild.id);
+        if (!queue || queue.songs.length <= 1) {
+            return message.reply('❌ Tidak ada lagu di queue untuk dihapus!');
+        }
+
+        const clearedCount = queue.songs.length - 1;
+        queue.songs = [queue.songs[0]];
+        queue.originalQueue = [];
+        queue.isShuffled = false;
+
+        message.channel.send(`🗑️ Berhasil menghapus **${clearedCount}** lagu dari queue!`);
+    }
+
+    // Command: joshua remove
+    if (command === 'remove' || command === 'rm') {
+        const queue = queues.get(message.guild.id);
+        if (!queue || queue.songs.length <= 1) {
+            return message.reply('❌ Tidak ada lagu di queue untuk dihapus!');
+        }
+
+        const position = parseInt(args[0]);
+        if (!position || position < 2 || position > queue.songs.length) {
+            return message.reply(`❌ Nomor tidak valid! Gunakan: \`joshua remove <2-${queue.songs.length}>\``);
+        }
+
+        const removed = queue.songs.splice(position - 1, 1)[0];
+        message.channel.send(`🗑️ Dihapus: **${removed.title}**`);
+    }
+
+    // Command: joshua skipto
+    if (command === 'skipto' || command === 'jumpto') {
+        const queue = queues.get(message.guild.id);
+        if (!queue || !queue.isPlaying) {
+            return message.reply('❌ Tidak ada lagu yang sedang diputar!');
+        }
+
+        const position = parseInt(args[0]);
+        if (!position || position < 1 || position > queue.songs.length) {
+            return message.reply(`❌ Nomor tidak valid! Gunakan: \`joshua skipto <1-${queue.songs.length}>\``);
+        }
+
+        if (position === 1) {
+            return message.reply('❌ Lagu ini sedang diputar!');
+        }
+
+        queue.songs.splice(1, position - 2);
+        queue.player.stop();
+
+        message.channel.send(`⏭️ Loncat ke: **${queue.songs[1].title}**`);
+    }
+
+    // Command: joshua move
+    if (command === 'move') {
+        const queue = queues.get(message.guild.id);
+        if (!queue || queue.songs.length <= 1) {
+            return message.reply('❌ Tidak ada lagu di queue!');
+        }
+
+        const from = parseInt(args[0]);
+        const to = parseInt(args[1]);
+
+        if (!from || !to || from < 2 || to < 2 || from > queue.songs.length || to > queue.songs.length) {
+            return message.reply(`❌ Format: \`joshua move <dari> <ke>\` (2-${queue.songs.length})`);
+        }
+
+        const song = queue.songs.splice(from - 1, 1)[0];
+        queue.songs.splice(to - 1, 0, song);
+
+        message.channel.send(`✅ Dipindah: **${song.title}** dari posisi ${from} ke ${to}`);
+    }
+
+    // Command: joshua stop
     if (command === 'stop') {
         const queue = queues.get(message.guild.id);
         if (!queue) {
@@ -237,7 +417,10 @@ client.on('messageCreate', async (message) => {
             return message.reply('❌ Queue kosong!');
         }
 
-        const shuffleStatus = queue.isShuffled ? '🔀 Shuffle: ON' : '▶️ Shuffle: OFF';
+        const settings = serverSettings.get(message.guild.id) || new ServerSettings();
+        const shuffleIcon = queue.isShuffled ? '🔀' : '▶️';
+        const repeatIcon = queue.repeatMode === 'song' ? '🔂' : queue.repeatMode === 'queue' ? '🔁' : '➡️';
+        const pauseIcon = queue.isPaused ? '⏸️' : '▶️';
         
         const embed = new EmbedBuilder()
             .setColor('#0099FF')
@@ -245,15 +428,23 @@ client.on('messageCreate', async (message) => {
             .setDescription(
                 queue.songs
                     .slice(0, 10)
-                    .map((song, index) => `**${index + 1}.** [${song.title}](${song.url}) - \`${song.duration}\``)
+                    .map((song, index) => {
+                        const prefix = index === 0 ? `${pauseIcon} ` : '';
+                        return `${prefix}**${index + 1}.** [${song.title}](${song.url}) - \`${song.duration}\``;
+                    })
                     .join('\n')
             )
-            .setFooter({ text: `Total: ${queue.songs.length} lagu | ${shuffleStatus}` });
+            .addFields(
+                { name: '🎵 Status', value: `${shuffleIcon} Shuffle | ${repeatIcon} Repeat: ${queue.repeatMode}`, inline: true },
+                { name: '🔊 Volume', value: `${settings.volume}%`, inline: true },
+                { name: '🎶 Kualitas', value: settings.quality, inline: true }
+            )
+            .setFooter({ text: `Total: ${queue.songs.length} lagu` });
 
         message.channel.send({ embeds: [embed] });
     }
 
-    // Command: !nowplaying atau !np
+    // Command: joshua nowplaying atau joshua np
     if (command === 'nowplaying' || command === 'np') {
         const queue = queues.get(message.guild.id);
         if (!queue || !queue.isPlaying || queue.songs.length === 0) {
@@ -261,38 +452,277 @@ client.on('messageCreate', async (message) => {
         }
 
         const song = queue.songs[0];
+        const settings = serverSettings.get(message.guild.id) || new ServerSettings();
+        const statusIcon = queue.isPaused ? '⏸️ Paused' : '▶️ Playing';
+        const repeatIcon = queue.repeatMode === 'song' ? '🔂' : queue.repeatMode === 'queue' ? '🔁' : '➡️';
+        
         const embed = new EmbedBuilder()
-            .setColor('#FF5500')
-            .setTitle('🎵 Sedang Memutar')
+            .setColor(queue.isPaused ? '#FFA500' : '#1DB954')
+            .setTitle(`🎵 ${statusIcon}`)
             .setDescription(`[${song.title}](${song.url})`)
             .addFields(
                 { name: '⏱️ Durasi', value: song.duration, inline: true },
-                { name: '👤 Diminta oleh', value: song.requester, inline: true }
+                { name: '👤 Diminta oleh', value: song.requester, inline: true },
+                { name: '🔊 Volume', value: `${settings.volume}%`, inline: true },
+                { name: '🔁 Repeat', value: `${repeatIcon} ${queue.repeatMode}`, inline: true },
+                { name: '🔀 Shuffle', value: queue.isShuffled ? 'ON' : 'OFF', inline: true },
+                { name: '💿 Kualitas', value: settings.quality.toUpperCase(), inline: true }
             )
-            .setThumbnail(song.thumbnail);
+            .setThumbnail(song.thumbnail)
+            .setFooter({ text: `${queue.songs.length - 1} lagu di queue` });
 
         message.channel.send({ embeds: [embed] });
     }
 
     // Command: joshua help
     if (command === 'help') {
+        const prefix = 'joshua';
+        
+        // Help dengan kategori
+        if (!args.length) {
+            const embed = new EmbedBuilder()
+                .setColor('#1DB954')
+                .setTitle('🎵 Joshua Music Bot - Help Menu')
+                .setDescription('Bot musik SoundCloud dengan fitur lengkap seperti Spotify & Apple Music\n\n**Kategori Perintah:**')
+                .addFields(
+                    { 
+                        name: '▶️ Playback', 
+                        value: '`joshua help playback`\nKontrol pemutaran musik', 
+                        inline: true 
+                    },
+                    { 
+                        name: '📋 Queue', 
+                        value: '`joshua help queue`\nManajemen antrian lagu', 
+                        inline: true 
+                    },
+                    { 
+                        name: '🔁 Loop & Mix', 
+                        value: '`joshua help loop`\nRepeat dan shuffle', 
+                        inline: true 
+                    },
+                    { 
+                        name: '🎚️ Audio', 
+                        value: '`joshua help audio`\nVolume & kualitas', 
+                        inline: true 
+                    },
+                    { 
+                        name: 'ℹ️ Info', 
+                        value: '`joshua help info`\nInformasi lagu', 
+                        inline: true 
+                    },
+                    { 
+                        name: '📝 Tips', 
+                        value: '`joshua help tips`\nTips & trik', 
+                        inline: true 
+                    }
+                )
+                .addFields({
+                    name: '\n💡 Quick Start',
+                    value: '```\njoshua play <lagu>     # Putar lagu\njoshua pause           # Jeda\njoshua resume          # Lanjut\njoshua skip            # Lewati\njoshua queue           # Lihat antrian\njoshua help playback   # Lihat detail kategori```',
+                    inline: false
+                })
+                .setFooter({ text: '💚 Powered by SoundCloud | Prefix: joshua' })
+                .setTimestamp();
+
+            return message.channel.send({ embeds: [embed] });
+        }
+
+        // Help categories
+        const category = args[0].toLowerCase();
+
+        if (category === 'playback' || category === 'play') {
+            const embed = new EmbedBuilder()
+                .setColor('#1DB954')
+                .setTitle('▶️ Playback Control')
+                .setDescription('Kontrol pemutaran musik dengan lengkap')
+                .addFields(
+                    {
+                        name: '`joshua play <url/query>`',
+                        value: '**Alias:** `p`\nPutar lagu dari URL SoundCloud atau pencarian\n**Contoh:**\n```\njoshua play https://soundcloud.com/...\njoshua play alan walker faded\njoshua p lofi hip hop```',
+                        inline: false
+                    },
+                    {
+                        name: '`joshua pause`',
+                        value: 'Jeda lagu yang sedang diputar\n**Status:** Lagu tetap di posisi yang sama',
+                        inline: false
+                    },
+                    {
+                        name: '`joshua resume`',
+                        value: '**Alias:** `continue`\nLanjutkan lagu yang di-pause\n**Contoh:** `joshua resume`',
+                        inline: false
+                    },
+                    {
+                        name: '`joshua skip`',
+                        value: '**Alias:** `s`\nLewati lagu saat ini dan putar lagu berikutnya\n**Info:** Menampilkan preview lagu berikutnya',
+                        inline: false
+                    },
+                    {
+                        name: '`joshua stop`',
+                        value: 'Berhenti memutar, hapus queue, dan keluar dari voice channel\n**Warning:** Akan menghapus semua lagu!',
+                        inline: false
+                    }
+                )
+                .setFooter({ text: 'joshua help <kategori> untuk info lainnya' });
+
+            return message.channel.send({ embeds: [embed] });
+        }
+
+        if (category === 'queue' || category === 'q') {
+            const embed = new EmbedBuilder()
+                .setColor('#3498DB')
+                .setTitle('📋 Queue Management')
+                .setDescription('Kelola antrian lagu dengan mudah')
+                .addFields(
+                    {
+                        name: '`joshua queue`',
+                        value: '**Alias:** `q`\nTampilkan daftar lagu di antrian (max 10)\n**Info:** Menampilkan status shuffle, repeat, volume, dll',
+                        inline: false
+                    },
+                    {
+                        name: '`joshua clear`',
+                        value: '**Alias:** `clearqueue`\nHapus semua lagu dari queue (kecuali yang sedang play)\n**Contoh:** `joshua clear`',
+                        inline: false
+                    },
+                    {
+                        name: '`joshua remove <nomor>`',
+                        value: '**Alias:** `rm`\nHapus lagu tertentu dari queue\n**Contoh:**\n```\njoshua remove 3\njoshua rm 5```',
+                        inline: false
+                    },
+                    {
+                        name: '`joshua move <dari> <ke>`',
+                        value: 'Pindahkan posisi lagu dalam queue\n**Contoh:**\n```\njoshua move 5 2    # Pindah lagu #5 ke posisi #2\njoshua move 3 1    # Pindah lagu #3 jadi next```',
+                        inline: false
+                    },
+                    {
+                        name: '`joshua skipto <nomor>`',
+                        value: '**Alias:** `jumpto`\nLoncat langsung ke lagu tertentu\n**Contoh:**\n```\njoshua skipto 4    # Loncat ke lagu #4\njoshua jumpto 7```',
+                        inline: false
+                    }
+                )
+                .setFooter({ text: 'Nomor dimulai dari 1 (lagu yang sedang play)' });
+
+            return message.channel.send({ embeds: [embed] });
+        }
+
+        if (category === 'loop' || category === 'repeat' || category === 'shuffle' || category === 'mix') {
+            const embed = new EmbedBuilder()
+                .setColor('#9B59B6')
+                .setTitle('🔁 Loop & Shuffle')
+                .setDescription('Repeat dan shuffle seperti Spotify')
+                .addFields(
+                    {
+                        name: '`joshua repeat [mode]`',
+                        value: '**Alias:** `loop`\n**Mode:** `off`, `song`, `queue`\n\n**➡️ Off** - Normal playback\n**🔂 Song** - Ulang lagu saat ini terus\n**🔁 Queue** - Ulang seluruh antrian\n\n**Contoh:**\n```\njoshua repeat          # Toggle mode\njoshua repeat song     # Set repeat song\njoshua repeat queue    # Set repeat queue\njoshua repeat off      # Matikan```',
+                        inline: false
+                    },
+                    {
+                        name: '`joshua shuffle`',
+                        value: '**Alias:** `mix`\nAcak queue dengan algoritma pintar seperti Spotify\n\n**Fitur Smart Shuffle:**\n• Hindari artis sama berurutan\n• Cegah lagu baru diputar muncul lagi\n• Distribusi merata & natural\n\n**Minimal:** 3 lagu di queue',
+                        inline: false
+                    },
+                    {
+                        name: '`joshua unshuffle`',
+                        value: '**Alias:** `unmix`\nKembalikan queue ke urutan asli\n**Contoh:** `joshua unshuffle`',
+                        inline: false
+                    }
+                )
+                .setFooter({ text: 'Kombinasi shuffle + repeat untuk pengalaman terbaik!' });
+
+            return message.channel.send({ embeds: [embed] });
+        }
+
+        if (category === 'audio' || category === 'volume' || category === 'quality') {
+            const embed = new EmbedBuilder()
+                .setColor('#E74C3C')
+                .setTitle('🎚️ Audio Settings')
+                .setDescription('Kontrol volume dan kualitas audio')
+                .addFields(
+                    {
+                        name: '`joshua volume <0-100>`',
+                        value: '**Alias:** `vol`, `v`\nAtur volume global (0-100%)\n\n**Contoh:**\n```\njoshua volume 50     # Set 50%\njoshua vol 100       # Set maksimum\njoshua v 25          # Set 25%\njoshua volume        # Cek volume saat ini```\n\n**Visual:** Menampilkan bar volume yang cantik',
+                        inline: false
+                    },
+                    {
+                        name: '`joshua quality <mode>`',
+                        value: '**Mode:** `low`, `medium`, `high`\n\n**🔉 Low** - 64 kbps (Hemat bandwidth)\n**🔊 Medium** - 128 kbps (Seimbang)\n**🔊✨ High** - 256 kbps (Kualitas terbaik)\n\n**Contoh:**\n```\njoshua quality high\njoshua quality medium\njoshua quality        # Cek saat ini```\n\n**Default:** High',
+                        inline: false
+                    }
+                )
+                .setFooter({ text: 'Pengaturan berlaku untuk lagu berikutnya' });
+
+            return message.channel.send({ embeds: [embed] });
+        }
+
+        if (category === 'info' || category === 'information') {
+            const embed = new EmbedBuilder()
+                .setColor('#F39C12')
+                .setTitle('ℹ️ Informasi Lagu')
+                .setDescription('Lihat info lengkap tentang lagu & queue')
+                .addFields(
+                    {
+                        name: '`joshua nowplaying`',
+                        value: '**Alias:** `np`\nTampilkan info lengkap lagu yang sedang diputar\n\n**Menampilkan:**\n• Judul & thumbnail\n• Durasi lagu\n• Who requested\n• Status (Playing/Paused)\n• Repeat mode\n• Shuffle status\n• Volume & kualitas\n• Jumlah lagu di queue\n\n**Contoh:**\n```\njoshua nowplaying\njoshua np```',
+                        inline: false
+                    },
+                    {
+                        name: '`joshua queue`',
+                        value: '**Alias:** `q`\nLihat antrian dengan info lengkap\n\n**Menampilkan:**\n• 10 lagu teratas\n• Lagu yang sedang play (dengan icon)\n• Status shuffle & repeat\n• Volume & kualitas\n• Total lagu',
+                        inline: false
+                    }
+                )
+                .setFooter({ text: 'Gunakan perintah ini untuk monitoring status bot' });
+
+            return message.channel.send({ embeds: [embed] });
+        }
+
+        if (category === 'tips' || category === 'trick' || category === 'tricks') {
+            const embed = new EmbedBuilder()
+                .setColor('#2ECC71')
+                .setTitle('💡 Tips & Trik')
+                .setDescription('Maksimalkan penggunaan Joshua Music Bot!')
+                .addFields(
+                    {
+                        name: '🎯 Workflow Optimal',
+                        value: '```\n1. joshua play <lagu 1>\n2. joshua play <lagu 2>\n3. joshua play <lagu 3>\n4. joshua shuffle        # Acak\n5. joshua repeat queue   # Loop semua\n6. joshua volume 70      # Set volume enak```',
+                        inline: false
+                    },
+                    {
+                        name: '⚡ Shortcuts',
+                        value: '• Gunakan alias untuk lebih cepat:\n  `joshua p` = play\n  `joshua s` = skip\n  `joshua q` = queue\n  `joshua np` = nowplaying\n  `joshua v` = volume',
+                        inline: false
+                    },
+                    {
+                        name: '🎵 Playlist Hack',
+                        value: '• Add multiple lagu terlebih dahulu\n• Gunakan `joshua shuffle` untuk variasi\n• Set `joshua repeat queue` untuk loop\n• Adjust `joshua volume` sesuai suasana',
+                        inline: false
+                    },
+                    {
+                        name: '🔧 Queue Management',
+                        value: '• `joshua remove` untuk hapus lagu jelek\n• `joshua move` untuk atur urutan favorit\n• `joshua skipto` untuk loncat ke lagu fav\n• `joshua clear` untuk reset queue',
+                        inline: false
+                    },
+                    {
+                        name: '🎧 Best Practice',
+                        value: '• Set quality HIGH untuk audio terbaik\n• Gunakan shuffle untuk hindari monoton\n• Pause saat AFK, jangan stop\n• Check `joshua np` untuk tau status',
+                        inline: false
+                    },
+                    {
+                        name: '⚠️ Troubleshooting',
+                        value: '• Lagu stuck? → `joshua skip`\n• Queue berantakan? → `joshua unshuffle`\n• Volume terlalu keras? → `joshua volume 50`\n• Mau fresh start? → `joshua stop`',
+                        inline: false
+                    }
+                )
+                .setFooter({ text: 'Selamat menikmati musik! 🎶' });
+
+            return message.channel.send({ embeds: [embed] });
+        }
+
+        // Jika kategori tidak ditemukan
         const embed = new EmbedBuilder()
-            .setColor('#FFD700')
-            .setTitle('🎵 Daftar Perintah Bot Music')
-            .setDescription('Bot musik SoundCloud untuk Discord')
-            .addFields(
-                { name: 'joshua play <url/query>', value: 'Memutar lagu dari SoundCloud URL atau pencarian', inline: false },
-                { name: 'joshua skip', value: 'Melewati lagu yang sedang diputar', inline: false },
-                { name: 'joshua stop', value: 'Berhenti memutar dan keluar dari voice channel', inline: false },
-                { name: 'joshua queue', value: 'Menampilkan daftar lagu di queue', inline: false },
-                { name: 'joshua nowplaying (joshua np)', value: 'Menampilkan lagu yang sedang diputar', inline: false },
-                { name: 'joshua shuffle', value: 'Mengacak queue dengan algoritma pintar', inline: false },
-                { name: 'joshua unshuffle', value: 'Kembalikan ke urutan asli', inline: false },
-                { name: 'joshua quality <low/medium/high>', value: 'Mengatur kualitas audio streaming', inline: false },
-                { name: 'joshua volume <0-100>', value: 'Mengatur volume global (persentase)', inline: false },
-                { name: 'joshua help', value: 'Menampilkan perintah ini', inline: false }
-            )
-            .setFooter({ text: 'Prefix: joshua' });
+            .setColor('#E74C3C')
+            .setTitle('❌ Kategori Tidak Ditemukan')
+            .setDescription(`Kategori **${category}** tidak tersedia.\n\nKategori yang tersedia:\n\`\`\`\nplayback, queue, loop, audio, info, tips\`\`\`\n\nGunakan \`joshua help\` untuk menu utama.`)
+            .setFooter({ text: 'Coba: joshua help playback' });
 
         message.channel.send({ embeds: [embed] });
     }
