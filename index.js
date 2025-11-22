@@ -21,33 +21,28 @@ if (fs.existsSync(cookiesPath)) {
     try {
         const cookiesContent = fs.readFileSync(cookiesPath, 'utf-8');
         
-        // Parse Netscape cookies format ke array
-        const cookies = cookiesContent
+        // Parse Netscape cookies format ke string format play-dl
+        const cookieLines = cookiesContent
             .split('\n')
             .filter(line => line && !line.startsWith('#') && line.trim())
             .map(line => {
                 const parts = line.split('\t');
                 if (parts.length >= 7) {
-                    return {
-                        domain: parts[0],
-                        flag: parts[1],
-                        path: parts[2],
-                        secure: parts[3],
-                        expiry: parts[4],
-                        name: parts[5],
-                        value: parts[6]
-                    };
+                    const name = parts[5];
+                    const value = parts[6];
+                    return `${name}=${value}`;
                 }
                 return null;
             })
             .filter(cookie => cookie !== null);
 
-        // Set cookies untuk play-dl
-        if (cookies.length > 0) {
+        // Set cookies untuk play-dl (format: "name=value; name2=value2")
+        if (cookieLines.length > 0) {
+            const cookieString = cookieLines.join('; ');
             play.setToken({
-                youtube: { cookie: cookies }
+                youtube: { cookie: cookieString }
             });
-            console.log(`✅ YouTube cookies loaded (${cookies.length} cookies)`);
+            console.log(`✅ YouTube cookies loaded (${cookieLines.length} cookies)`);
         } else {
             console.log('⚠️ Warning: No valid cookies found in cookies.txt');
         }
