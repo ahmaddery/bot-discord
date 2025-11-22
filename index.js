@@ -3,6 +3,8 @@ const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const { DisTube } = require('distube');
 const { YouTubePlugin } = require('@distube/youtube');
 const ffmpeg = require('ffmpeg-static');
+const fs = require('fs');
+const path = require('path');
 
 const client = new Client({
     intents: [
@@ -13,10 +15,79 @@ const client = new Client({
     ]
 });
 
-// Setup DisTube dengan YouTubePlugin resmi (lebih stabil)
+// Load cookies untuk bypass YouTube bot detection
+let cookieString = '';
+const cookieTxtPath = path.join(__dirname, 'cookies.txt');
+const cookieJsonPath = path.join(__dirname, 'cookies.json');
+
+if (fs.existsSync(cookieTxtPath)) {
+    try {
+        const cookieData = fs.readFileSync(cookieTxtPath, 'utf-8');
+        const lines = cookieData.split('\n').filter(line => 
+            line.trim() && !line.startsWith('#')
+        );
+        
+        const cookies = lines.map(line => {
+            const parts = line.split('\t');
+            if (parts.length >= 7) {
+                return `${parts[5]}=${parts[6]}`;
+            }
+            return null;
+        }).filter(Boolean);
+        
+        cookieString = cookies.join('; ');
+        console.log(`✅ YouTube cookies loaded from TXT (${cookies.length} cookies)`);
+    } catch (error) {
+        console.error('⚠️ Error loading cookies.txt:', error.message);
+    }
+} else if (fs.existsSync(cookieJsonPath)) {
+    try {
+        const cookieData = JSON.parse(fs.readFileSync(cookieJsonPath, 'utf-8'));
+        cookieString = cookieData.map(c => `${c.name}=${c.value}`).join('; ');
+        console.log(`✅ YouTube cookies loaded from JSON (${cookieData.length} cookies)`);
+    } catch (error) {
+        console.error('⚠️ Error loading cookies.json:', error.message);
+    }
+} else {
+    console.warn('⚠️ No cookies file found. Bot mungkin diblokir YouTube.');
+}
+
+// Setup DisTube dengan YouTubePlugin + cookies
 const distube = new DisTube(client, {
     plugins: [
-        new YouTubePlugin()
+        new YouTubePlugin({
+            cookies: cookieString ? [
+                {
+                    domain: '.youtube.com',
+                    expirationDate: Math.floor(Date.now() / 1000) + 31536000,
+                    hostOnly: false,
+                    httpOnly: false,
+                    name: 'COOKIE_CONSENT',
+                    path: '/',
+                    sameSite: 'no_restriction',
+                    secure: true,
+                    session: false,
+                    storeId: null,
+                    value: 'YES+1'
+                },
+                ...cookieString.split('; ').map(cookie => {
+                    const [name, value] = cookie.split('=');
+                    return {
+                        domain: '.youtube.com',
+                        expirationDate: Math.floor(Date.now() / 1000) + 31536000,
+                        hostOnly: false,
+                        httpOnly: true,
+                        name: name,
+                        path: '/',
+                        sameSite: 'no_restriction',
+                        secure: true,
+                        session: false,
+                        storeId: null,
+                        value: value
+                    };
+                })
+            ] : undefined
+        })
     ],
     ffmpeg: {
         path: ffmpeg
