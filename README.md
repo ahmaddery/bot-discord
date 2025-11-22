@@ -72,6 +72,7 @@ npm run dev
 | `joshua stop` | - | Berhenti memutar dan keluar dari voice channel |
 | `joshua queue` | `joshua q` | Menampilkan daftar lagu di queue (max 10) |
 | `joshua nowplaying` | `joshua np` | Menampilkan lagu yang sedang diputar |
+| `joshua quality <low/medium/high>` | - | Mengatur kualitas audio streaming |
 | `joshua help` | - | Menampilkan daftar perintah |
 
 ## 💡 Contoh Penggunaan
@@ -84,6 +85,13 @@ joshua play https://soundcloud.com/artist/song-name
 ### Memutar lagu dengan pencarian:
 ```
 joshua play alan walker faded
+```
+
+### Mengatur kualitas audio:
+```
+joshua quality high    # Kualitas terbaik (256 kbps)
+joshua quality medium  # Seimbang (128 kbps)
+joshua quality low     # Hemat bandwidth (64 kbps)
 ```
 
 ### Skip lagu:

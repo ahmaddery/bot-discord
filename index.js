@@ -34,6 +34,9 @@ const client = new Client({
 // Queue untuk menyimpan lagu
 const queues = new Map();
 
+// Settings untuk setiap server
+const serverSettings = new Map();
+
 // Struktur queue untuk setiap server
 class Queue {
     constructor() {
@@ -41,6 +44,13 @@ class Queue {
         this.connection = null;
         this.player = null;
         this.isPlaying = false;
+    }
+}
+
+// Struktur settings untuk setiap server
+class ServerSettings {
+    constructor() {
+        this.quality = 'high'; // default: high, options: low, medium, high
     }
 }
 
@@ -260,9 +270,54 @@ client.on('messageCreate', async (message) => {
                 { name: 'joshua stop', value: 'Berhenti memutar dan keluar dari voice channel', inline: false },
                 { name: 'joshua queue', value: 'Menampilkan daftar lagu di queue', inline: false },
                 { name: 'joshua nowplaying (joshua np)', value: 'Menampilkan lagu yang sedang diputar', inline: false },
+                { name: 'joshua quality <low/medium/high>', value: 'Mengatur kualitas audio streaming', inline: false },
                 { name: 'joshua help', value: 'Menampilkan perintah ini', inline: false }
             )
             .setFooter({ text: 'Prefix: joshua' });
+
+        message.channel.send({ embeds: [embed] });
+    }
+
+    // Command: joshua quality
+    if (command === 'quality') {
+        if (!args.length) {
+            const settings = serverSettings.get(message.guild.id) || new ServerSettings();
+            return message.reply(`🎚️ Kualitas audio saat ini: **${settings.quality}**\n\nGunakan: \`joshua quality <low/medium/high>\``);
+        }
+
+        const quality = args[0].toLowerCase();
+        if (!['low', 'medium', 'high'].includes(quality)) {
+            return message.reply('❌ Pilihan tidak valid! Gunakan: `low`, `medium`, atau `high`');
+        }
+
+        let settings = serverSettings.get(message.guild.id);
+        if (!settings) {
+            settings = new ServerSettings();
+            serverSettings.set(message.guild.id, settings);
+        }
+
+        settings.quality = quality;
+
+        const qualityEmojis = {
+            low: '🔉',
+            medium: '🔊',
+            high: '🔊✨'
+        };
+
+        const qualityDescriptions = {
+            low: '64 kbps - Hemat bandwidth',
+            medium: '128 kbps - Seimbang',
+            high: '256 kbps - Kualitas terbaik'
+        };
+
+        const embed = new EmbedBuilder()
+            .setColor('#00FF00')
+            .setTitle('🎚️ Kualitas Audio Diubah')
+            .setDescription(`${qualityEmojis[quality]} Kualitas: **${quality.toUpperCase()}**`)
+            .addFields(
+                { name: 'Info', value: qualityDescriptions[quality], inline: false },
+                { name: '💡 Catatan', value: 'Pengaturan akan berlaku untuk lagu berikutnya', inline: false }
+            );
 
         message.channel.send({ embeds: [embed] });
     }
@@ -274,7 +329,20 @@ async function playSong(guild, song) {
     if (!queue) return;
 
     try {
-        const stream = await play.stream(song.url);
+        // Dapatkan settings kualitas
+        const settings = serverSettings.get(guild.id) || new ServerSettings();
+        
+        // Set kualitas berdasarkan settings
+        const qualityOptions = {
+            low: 0,      // ~64 kbps
+            medium: 1,   // ~128 kbps
+            high: 2      // ~256 kbps
+        };
+
+        const stream = await play.stream(song.url, {
+            quality: qualityOptions[settings.quality] || 2
+        });
+        
         const resource = createAudioResource(stream.stream, {
             inputType: stream.type,
         });
