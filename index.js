@@ -103,45 +103,132 @@ function truncateString(str, maxLength) {
 // Fungsi AI untuk mendapatkan rekomendasi lagu menggunakan Gemini
 async function getAIRecommendation(queue) {
     try {
-        // Ambil 5 lagu terakhir dari history untuk konteks
-        const recentSongs = [...queue.playHistory.slice(-5), ...queue.userAddedSongs.slice(-3)];
+        // Ambil lagu dari history dan user songs untuk konteks
+        const recentSongs = [...queue.playHistory.slice(-5), ...queue.userAddedSongs.slice(-5)];
         
         if (recentSongs.length === 0) {
             // Jika tidak ada history, return lagu populer default
-            return "Shape of You Ed Sheeran";
+            return "Shape of You - Ed Sheeran";
         }
 
-        // Analisa platform preference
-        const platformCount = { soundcloud: 0, deezer: 0 };
-        queue.userAddedSongs.forEach(song => {
-            if (song.platform) {
-                platformCount[song.platform]++;
-            }
-        });
+        // Buat prompt yang SANGAT SPESIFIK untuk Gemini (seperti Spotify algorithm)
+        const songList = recentSongs.map(s => `"${s.title}"`).join(', ');
         
-        // Set preferred platform
-        queue.preferredPlatform = platformCount.deezer > platformCount.soundcloud ? 'deezer' : 'soundcloud';
+        let prompt;
+        if (recentSongs.length === 1) {
+            // Kalau cuma 1 lagu, AI harus analisa LEBIH DALAM dari lagu itu
+            prompt = `You are a music recommendation AI like Spotify's algorithm.
 
-        // Buat prompt untuk Gemini
-        const songList = recentSongs.map(s => s.title).join(', ');
-        const prompt = `Based on these songs that the user recently played: ${songList}
+User just played this ONE song: ${songList}
 
-Recommend ONE similar song that the user would love. Consider:
-- Music genre and style
-- Artist similarity
-- Mood and tempo
-- Popular and well-known songs
+DEEP ANALYSIS - Based ONLY on this song, analyze:
+1. GENRE: What is the exact music genre? (indie rock, pop, electronic, hip-hop, R&B, alternative, etc.)
+2. ARTIST STYLE: What is the artist's style? (indie, mainstream, underground, etc.)
+3. MOOD: What's the mood/vibe? (upbeat, melancholic, chill, energetic, dreamy, etc.)
+4. SIMILAR ARTISTS: Who are artists with similar sound?
 
-Reply with ONLY the song title and artist name in this exact format:
+Now recommend ONE song that:
+- Is from the SAME or VERY SIMILAR genre
+- Has SIMILAR mood and vibe
+- Is from a well-known artist in that genre
+- Is NOT a remix, DJ mix, compilation, or mashup
+- Is a REAL SONG from one artist
+
+STRICT RULES:
+- NO party mixes, summer vibes compilations
+- NO DJ sets, remixes, or bass boosted
+- NO "best of" or "top hits" collections
+- ONLY single songs from real artists
+
+Format: Song Title - Artist Name
+Example: Mr. Brightside - The Killers`;
+        } else {
+            // Kalau 2+ lagu, analisa pattern
+            prompt = `You are a music recommendation AI like Spotify's algorithm. 
+
+User's listening history: ${songList}
+
+Analyze:
+1. GENRE: What genre/style are these songs? (pop, rock, indie, electronic, hip-hop, R&B, etc.)
+2. LANGUAGE: What language are the lyrics? (English, Indonesian, Korean, etc.)
+3. MOOD: What's the mood? (upbeat, melancholic, chill, energetic, etc.)
+4. ERA: What era? (2020s, 2010s, 2000s, 90s, 80s, etc.)
+
+Based on this analysis, recommend ONE similar song that:
+- Matches the SAME genre
+- Matches the SAME language
+- Has similar mood and tempo
+- Is from a well-known artist
+- Is NOT a remix, DJ mix, or compilation
+- Is a REAL SONG with proper artist name
+
+IMPORTANT RULES:
+- NO DJ remixes or bass boosted versions
+- NO compilation albums or mix tapes  
+- NO generic trending/viral songs
+- ONLY mainstream popular songs from real artists
+
+Reply with ONLY:
 Song Title - Artist Name
 
-Example: Blinding Lights - The Weeknd
-
-Do not add any explanation, just the song name and artist.`;
+Example: Levitating - Dua Lipa`;
+        }
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        const recommendation = response.text().trim();
+        let recommendation = response.text().trim();
+        
+        // Validasi: Filter out bad recommendations (lebih ketat!)
+        const badKeywords = [
+            'dj', 'remix', 'mix', 'mashup', 'cover',
+            'bass boosted', 'trending', 'compilation', 'best of',
+            'moosewala', 'punjabi', 'arabic',
+            'party', 'summer', 'vibes', 'hits collection',
+            'vol.', 'part', 'episode'
+        ];
+        
+        const hasBadKeyword = badKeywords.some(keyword => 
+            recommendation.toLowerCase().includes(keyword)
+        );
+        
+        if (hasBadKeyword) {
+            console.log(`⚠️ Bad AI recommendation detected: "${recommendation}"`);
+            console.log(`🔄 AI failed, forcing re-generation with stricter prompt...`);
+            
+            // Emergency: Paksa AI untuk recommend dengan prompt ULTRA strict
+            const lastSong = recentSongs[recentSongs.length - 1];
+            const emergencyPrompt = `CRITICAL: Recommend ONE real song by ONE real artist.
+
+Based on: ${lastSong.title}
+
+Rules:
+- MUST be a single song, NOT a mix/compilation
+- MUST be from ONE artist only
+- MUST be in same genre
+- Format: "Song Name - Artist Name"
+
+Example: Wonderwall - Oasis
+
+NO mixes, NO compilations, NO DJs. Just ONE song.`;
+            
+            try {
+                const retryResult = await model.generateContent(emergencyPrompt);
+                const retryResponse = await retryResult.response;
+                recommendation = retryResponse.text().trim();
+                console.log(`🎯 Retry recommendation: "${recommendation}"`);
+            } catch (error) {
+                console.log(`❌ Retry failed, using ultimate fallback`);
+                // Ultimate fallback: Popular mainstream songs
+                const fallbacks = [
+                    "Blinding Lights - The Weeknd",
+                    "Shape of You - Ed Sheeran", 
+                    "Someone Like You - Adele",
+                    "Levitating - Dua Lipa",
+                    "Shivers - Ed Sheeran"
+                ];
+                recommendation = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+            }
+        }
         
         console.log(`🤖 AI Recommendation: ${recommendation}`);
         return recommendation;
@@ -160,10 +247,17 @@ Do not add any explanation, just the song name and artist.`;
 
 // Fungsi untuk autoplay lagu berikutnya
 async function autoplayNextSong(guild, queue) {
-    if (!queue || !queue.autoplay || queue.isAutoplayActive) return;
+    if (!queue || !queue.autoplay) return;
+    
+    // Prevent multiple simultaneous autoplay calls
+    if (queue.isAutoplayActive) {
+        console.log('⚠️ Autoplay already running, skipping...');
+        return;
+    }
     
     try {
         queue.isAutoplayActive = true;
+        console.log(`📊 Analyzing ${queue.userAddedSongs.length} user songs for recommendation...`);
         
         // Dapatkan rekomendasi dari AI
         const recommendation = await getAIRecommendation(queue);
@@ -189,10 +283,12 @@ async function autoplayNextSong(guild, queue) {
                 
                 if (scResults && scResults.length > 0) {
                     const scTrack = scResults[0];
+                    // Gunakan durasi dari Deezer, bukan SoundCloud (lebih akurat)
+                    const duration = track.duration ? formatDuration(track.duration) : formatDuration(scTrack.durationInSec);
                     song = {
                         title: `${track.title} - ${artist}`,
                         url: scTrack.url,
-                        duration: formatDuration(scTrack.durationInSec),
+                        duration: duration,
                         thumbnail: track.album?.cover_medium || scTrack.thumbnail?.url || null,
                         requester: '🤖 AI Autoplay',
                         platform: 'deezer',
@@ -325,10 +421,30 @@ async function addToQueueAndPlay(message, song) {
                         // Jika lagu terakhir dari autoplay, langsung play lagu AI berikutnya
                         if (wasAutoplay) {
                             console.log('🤖 Autoplay continuous: loading next AI recommendation...');
-                            await autoplayNextSong(message.guild, queue);
+                            
+                            // Clear timer lama kalau ada
+                            if (queue.autoplayTimer) {
+                                clearTimeout(queue.autoplayTimer);
+                                queue.autoplayTimer = null;
+                            }
+                            
+                            // Langsung trigger autoplay tanpa delay
+                            setTimeout(async () => {
+                                // Double check queue masih kosong
+                                if (queue.songs.length === 0 && queue.autoplay) {
+                                    await autoplayNextSong(message.guild, queue);
+                                }
+                            }, 1000); // Delay 1 detik untuk stabilitas
                         } else {
                             // Jika lagu terakhir dari user, tunggu 60 detik
                             console.log('⏰ Starting 60s autoplay timer...');
+                            
+                            // Clear timer lama kalau ada
+                            if (queue.autoplayTimer) {
+                                clearTimeout(queue.autoplayTimer);
+                                queue.autoplayTimer = null;
+                            }
+                            
                             queue.autoplayTimer = setTimeout(async () => {
                                 if (queue.songs.length === 0 && queue.autoplay) {
                                     console.log('🤖 Autoplay triggered after 60s...');
@@ -360,12 +476,47 @@ async function addToQueueAndPlay(message, song) {
             queue.userAddedSongs.shift(); // Keep last 10 only
         }
         
+        // Hitung platform preference berdasarkan usage
+        // Butuh minimal 5 lagu untuk set preference yang stabil
+        if (queue.userAddedSongs.length >= 5) {
+            const platformCounts = {};
+            queue.userAddedSongs.forEach(s => {
+                platformCounts[s.platform] = (platformCounts[s.platform] || 0) + 1;
+            });
+            
+            // Set preferred platform hanya jika salah satu platform >60% usage
+            const platforms = Object.keys(platformCounts);
+            if (platforms.length > 0) {
+                const dominant = platforms.reduce((a, b) => 
+                    platformCounts[a] > platformCounts[b] ? a : b
+                );
+                const percentage = (platformCounts[dominant] / queue.userAddedSongs.length) * 100;
+                
+                // Hanya set preference jika dominan >60%
+                if (percentage >= 60) {
+                    queue.preferredPlatform = dominant;
+                    console.log(`📊 Platform preference: ${queue.preferredPlatform} (${platformCounts[queue.preferredPlatform]}/${queue.userAddedSongs.length} = ${percentage.toFixed(0)}%)`);
+                } else {
+                    // Mixed usage, default ke soundcloud
+                    queue.preferredPlatform = 'soundcloud';
+                    console.log(`📊 Mixed platform usage, defaulting to SoundCloud`);
+                }
+            }
+        } else {
+            // Belum cukup data, default ke soundcloud
+            queue.preferredPlatform = queue.preferredPlatform || 'soundcloud';
+            console.log(`📊 Not enough songs (${queue.userAddedSongs.length}/5) for preference, using: ${queue.preferredPlatform}`);
+        }
+        
         // Clear autoplay timer karena user add lagu baru
         if (queue.autoplayTimer) {
             clearTimeout(queue.autoplayTimer);
             queue.autoplayTimer = null;
             console.log('⏰ Autoplay timer cleared - user added new song');
         }
+        
+        // Reset autoplay active flag
+        queue.isAutoplayActive = false;
     }
     
     // Set text channel untuk notifikasi autoplay
