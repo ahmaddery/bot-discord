@@ -355,12 +355,16 @@ async function autoplayNextSong(guild, queue) {
 
 // Fungsi helper untuk add lagu ke queue dan play
 async function addToQueueAndPlay(message, song) {
+    console.log('🎵 addToQueueAndPlay called for guild:', message.guild.id);
     let queue = queues.get(message.guild.id);
+    console.log('📊 Current queue before:', queue ? 'exists' : 'null');
     
     if (!queue) {
+        console.log('📦 Creating new queue for guild:', message.guild.id);
         queue = new Queue();
         queue.textChannel = message.channel; // Save text channel for notifications
         queues.set(message.guild.id, queue);
+        console.log('📦 Queue saved to shared state. Map size:', queues.size);
 
         queue.connection = joinVoiceChannel({
             channelId: message.member.voice.channel.id,
@@ -480,6 +484,8 @@ async function addToQueueAndPlay(message, song) {
     }
 
     queue.songs.push(song);
+    console.log('🎵 Song added to queue. Total songs:', queue.songs.length);
+    console.log('📊 Queue state - Playing:', queue.isPlaying, 'Paused:', queue.isPaused);
     
     // Broadcast ke dashboard
     broadcast.broadcastQueueUpdate(message.guild.id);
