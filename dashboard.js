@@ -4,12 +4,16 @@ const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 const { WebSocketServer } = require('ws');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const play = require('play-dl');
+const Deezer = require('deezer-public-api');
 const sharedState = require('./shared-state');
 const broadcast = require('./broadcast');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.DASHBOARD_PORT || 3000;
+
+// Setup Deezer
+const deezer = new Deezer();
 
 // Setup WebSocket
 const wss = new WebSocketServer({ noServer: true });
@@ -179,6 +183,62 @@ app.get('/api/guilds', (req, res) => {
     res.json(guilds);
 });
 
+// Search songs endpoint
+app.post('/api/:guildId/search', async (req, res) => {
+    if (!client || !client.user) {
+        return res.status(503).json({ error: 'Bot not ready' });
+    }
+    
+    const { guildId } = req.params;
+    const { query, platform } = req.body;
+    
+    if (!query) {
+        return res.status(400).json({ error: 'Query is required' });
+    }
+    
+    try {
+        let results = [];
+        
+        if (platform === 'soundcloud' || !platform) {
+            // Search SoundCloud
+            const scResults = await play.search(query, { 
+                source: { soundcloud: 'tracks' }, 
+                limit: 10 
+            });
+            
+            results = scResults.map(track => ({
+                title: track.name || track.title,
+                url: track.url,
+                duration: formatDuration(track.durationInSec),
+                thumbnail: track.thumbnail?.url || track.thumbnails?.[0]?.url || null,
+                platform: 'soundcloud',
+                artist: track.user?.name || 'Unknown'
+            }));
+        } else if (platform === 'deezer') {
+            // Search Deezer
+            const dzResults = await deezer.search(query, { limit: 10 });
+            
+            if (dzResults.data && dzResults.data.length > 0) {
+                results = dzResults.data.map(track => ({
+                    title: track.title,
+                    url: track.link,
+                    duration: formatDuration(track.duration),
+                    thumbnail: track.album?.cover_medium || null,
+                    platform: 'deezer',
+                    artist: track.artist?.name || 'Unknown',
+                    deezerTrack: track // Store for later SoundCloud lookup
+                }));
+            }
+        }
+        
+        res.json({ success: true, results });
+        
+    } catch (error) {
+        console.error('Search error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/api/:guildId/queue', (req, res) => {
     const queue = queues.get(req.params.guildId);
     
@@ -202,7 +262,7 @@ app.post('/api/:guildId/play', async (req, res) => {
     }
     
     const { guildId } = req.params;
-    const { query } = req.body;
+    const { query, songData } = req.body;
     
     try {
         const guild = client.guilds.cache.get(guildId);
@@ -210,20 +270,60 @@ app.post('/api/:guildId/play', async (req, res) => {
             return res.status(404).json({ error: 'Guild not found' });
         }
 
-        // Cari lagu di SoundCloud
-        const searched = await play.search(query, { limit: 1, source: { soundcloud: 'tracks' } });
-        if (searched.length === 0) {
-            return res.status(404).json({ error: 'Song not found' });
-        }
+        let song;
+        
+        // If songData provided (from search results), use it directly
+        if (songData) {
+            if (songData.platform === 'deezer') {
+                // Need to find SoundCloud equivalent for streaming
+                const scQuery = `${songData.title} ${songData.artist}`;
+                const scResults = await play.search(scQuery, { 
+                    source: { soundcloud: 'tracks' }, 
+                    limit: 1 
+                });
+                
+                if (!scResults || scResults.length === 0) {
+                    return res.status(404).json({ error: 'Could not find SoundCloud stream for this song' });
+                }
+                
+                const scTrack = scResults[0];
+                song = {
+                    title: `${songData.title} - ${songData.artist}`,
+                    url: scTrack.url,
+                    duration: songData.duration,
+                    thumbnail: songData.thumbnail || scTrack.thumbnail?.url,
+                    requester: 'Dashboard User',
+                    platform: 'deezer'
+                };
+            } else {
+                // SoundCloud direct
+                song = {
+                    title: songData.title,
+                    url: songData.url,
+                    duration: songData.duration,
+                    thumbnail: songData.thumbnail,
+                    requester: 'Dashboard User',
+                    platform: 'soundcloud'
+                };
+            }
+        } else if (query) {
+            // Legacy: search by query
+            const searched = await play.search(query, { limit: 1, source: { soundcloud: 'tracks' } });
+            if (searched.length === 0) {
+                return res.status(404).json({ error: 'Song not found' });
+            }
 
-        const song = {
-            title: searched[0].name || searched[0].title,
-            url: searched[0].url,
-            duration: formatDuration(searched[0].durationInSec),
-            thumbnail: searched[0].thumbnails?.[0]?.url || searched[0].thumbnail,
-            requester: 'Dashboard User',
-            type: 'soundcloud'
-        };
+            song = {
+                title: searched[0].name || searched[0].title,
+                url: searched[0].url,
+                duration: formatDuration(searched[0].durationInSec),
+                thumbnail: searched[0].thumbnails?.[0]?.url || searched[0].thumbnail,
+                requester: 'Dashboard User',
+                platform: 'soundcloud'
+            };
+        } else {
+            return res.status(400).json({ error: 'Query or songData required' });
+        }
 
         let queue = queues.get(guildId);
         

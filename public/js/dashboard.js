@@ -254,19 +254,115 @@ async function changeVolume(volume) {
 async function requestSong() {
     if (!currentGuildId) return;
     
-    const query = prompt('Enter song name or URL:');
-    if (!query) return;
+    // Show search modal
+    showSearchModal();
+}
+
+// Show search modal
+function showSearchModal() {
+    const modal = document.getElementById('search-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        document.getElementById('search-input').focus();
+    }
+}
+
+// Hide search modal
+function hideSearchModal() {
+    const modal = document.getElementById('search-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.getElementById('search-input').value = '';
+        document.getElementById('search-results').innerHTML = '';
+        document.getElementById('platform-tabs').querySelectorAll('button').forEach(btn => {
+            btn.classList.remove('active-tab');
+            if (btn.dataset.platform === 'soundcloud') {
+                btn.classList.add('active-tab');
+            }
+        });
+    }
+}
+
+// Search songs
+async function searchSongs(query, platform = 'soundcloud') {
+    if (!currentGuildId || !query.trim()) return;
+    
+    const resultsContainer = document.getElementById('search-results');
+    resultsContainer.innerHTML = '<div class="text-center py-8 text-spotify-lightgray">🔍 Searching...</div>';
     
     try {
-        const result = await apiRequest(`/api/${currentGuildId}/play`, 'POST', { query });
+        const response = await apiRequest(`/api/${currentGuildId}/search`, 'POST', { query, platform });
+        
+        if (!response.success || !response.results || response.results.length === 0) {
+            resultsContainer.innerHTML = '<div class="text-center py-8 text-spotify-lightgray">No results found</div>';
+            return;
+        }
+        
+        const defaultThumbnail = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjMUIxQjFCIi8+CjxwYXRoIGQ9Ik0zNS41IDY1LjVWMzQuNUw2My41IDUwTDM1LjUgNjUuNVoiIGZpbGw9IiMxREI5NTQiLz4KPC9zdmc+';
+        
+        resultsContainer.innerHTML = response.results.map((song, index) => `
+            <div class="flex items-center space-x-4 p-3 rounded-lg hover:bg-spotify-gray transition cursor-pointer search-result-item" 
+                 data-song='${JSON.stringify(song).replace(/'/g, "&apos;")}'>
+                <span class="text-spotify-lightgray w-6 text-center font-semibold">${index + 1}</span>
+                <img src="${song.thumbnail || defaultThumbnail}" alt="${song.title}" class="w-12 h-12 rounded object-cover flex-shrink-0 shadow-lg bg-spotify-gray">
+                <div class="flex-1 min-w-0">
+                    <p class="font-semibold truncate">${song.title}</p>
+                    <p class="text-sm text-spotify-lightgray truncate">👤 ${song.artist || 'Unknown'}</p>
+                </div>
+                <span class="text-sm text-spotify-lightgray">⏱️ ${song.duration}</span>
+                <span class="text-xs px-2 py-1 rounded ${song.platform === 'deezer' ? 'bg-pink-600' : 'bg-orange-600'}">${song.platform === 'deezer' ? '🎵 Deezer' : '🔊 SoundCloud'}</span>
+            </div>
+        `).join('');
+        
+        // Add click handlers
+        document.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('click', async () => {
+                const songData = JSON.parse(item.dataset.song.replace(/&apos;/g, "'"));
+                await addSongFromSearch(songData);
+            });
+        });
+        
+    } catch (error) {
+        console.error('Search error:', error);
+        resultsContainer.innerHTML = '<div class="text-center py-8 text-red-400">Error searching songs</div>';
+    }
+}
+
+// Add song from search results
+async function addSongFromSearch(songData) {
+    if (!currentGuildId) return;
+    
+    try {
+        const result = await apiRequest(`/api/${currentGuildId}/play`, 'POST', { songData });
+        
         if (result.success) {
-            alert(`Added: ${result.song.title}`);
+            hideSearchModal();
+            
+            // Show success notification
+            showNotification(`✅ Added: ${result.song.title}`, 'success');
         } else {
-            alert('Failed to add song: ' + (result.error || 'Unknown error'));
+            showNotification('❌ Failed to add song: ' + (result.error || 'Unknown error'), 'error');
         }
     } catch (error) {
-        alert('Error adding song: ' + error.message);
+        showNotification('❌ Error adding song: ' + error.message, 'error');
     }
+}
+
+// Show notification
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
+        type === 'success' ? 'bg-spotify-green text-black' : 
+        type === 'error' ? 'bg-red-600 text-white' : 
+        'bg-spotify-gray text-white'
+    }`;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
 }
 
 // Player controls
@@ -300,6 +396,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (addSongBtnEmpty) {
         addSongBtnEmpty.addEventListener('click', requestSong);
+    }
+    
+    // Search modal handlers
+    const searchInput = document.getElementById('search-input');
+    const closeModalBtn = document.getElementById('close-search-modal');
+    const searchModal = document.getElementById('search-modal');
+    
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', hideSearchModal);
+    }
+    
+    if (searchModal) {
+        // Close on backdrop click
+        searchModal.addEventListener('click', (e) => {
+            if (e.target === searchModal) {
+                hideSearchModal();
+            }
+        });
+        
+        // Close on ESC key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !searchModal.classList.contains('hidden')) {
+                hideSearchModal();
+            }
+        });
+    }
+    
+    if (searchInput) {
+        // Search on Enter key
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const query = searchInput.value.trim();
+                const activePlatform = document.querySelector('.platform-tab.active-tab')?.dataset.platform || 'soundcloud';
+                searchSongs(query, activePlatform);
+            }
+        });
+    }
+    
+    // Platform tabs
+    document.querySelectorAll('.platform-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            // Update active tab
+            document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active-tab'));
+            tab.classList.add('active-tab');
+            
+            // Re-search with new platform
+            const query = searchInput?.value.trim();
+            if (query) {
+                searchSongs(query, tab.dataset.platform);
+            }
+        });
+    });
+    
+    // Search button
+    const searchBtn = document.getElementById('search-btn');
+    if (searchBtn) {
+        searchBtn.addEventListener('click', () => {
+            const query = searchInput?.value.trim();
+            const activePlatform = document.querySelector('.platform-tab.active-tab')?.dataset.platform || 'soundcloud';
+            if (query) {
+                searchSongs(query, activePlatform);
+            }
+        });
     }
     
     // Volume control
