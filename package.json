@@ -4,9 +4,10 @@
   "description": "Bot Discord untuk memutar musik dari SoundCloud",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "dashboard": "node dashboard.js"
+    "start": "node start.js",
+    "bot": "node index.js",
+    "dashboard": "node dashboard.js",
+    "dev": "nodemon index.js"
   },
   "keywords": [
     "discord",
