@@ -1278,9 +1278,16 @@ async function playSong(guild, song) {
 
         queue.player.play(resource);
         queue.isPlaying = true;
+        console.log('🎵 Playing song:', song.title);
         
         // Broadcast ke dashboard
         broadcast.broadcastQueueUpdate(guild.id);
+        
+        // Tambahan broadcast setelah 500ms untuk memastikan state ter-sync
+        setTimeout(() => {
+            console.log('🔄 Double-check broadcast after play started');
+            broadcast.broadcastQueueUpdate(guild.id);
+        }, 500);
 
     } catch (error) {
         console.error(error);

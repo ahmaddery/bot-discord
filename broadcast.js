@@ -18,13 +18,17 @@ function setWebSocketServer(websocketServer) {
         isReady = true;
         console.log('✅ WebSocket server registered for broadcasting');
         
-        // Broadcast pending updates
+        // Broadcast pending updates dengan delay untuk memastikan data ready
         if (pendingBroadcasts.length > 0) {
             console.log(`📤 Broadcasting ${pendingBroadcasts.length} pending updates...`);
-            pendingBroadcasts.forEach(guildId => {
-                broadcastQueueUpdate(guildId);
-            });
-            pendingBroadcasts = [];
+            
+            // Delay 100ms untuk memastikan data sudah ready
+            setTimeout(() => {
+                pendingBroadcasts.forEach(guildId => {
+                    broadcastQueueUpdate(guildId);
+                });
+                pendingBroadcasts = [];
+            }, 100);
         }
     }, 500);
 }
