@@ -6,6 +6,7 @@ const prism = require('prism-media');
 const Deezer = require('deezer-public-api');
 const fetch = require('node-fetch');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const sharedState = require('./shared-state');
 
 // Inisialisasi Deezer
 const deezer = new Deezer();
@@ -42,11 +43,11 @@ const client = new Client({
     ],
 });
 
-// Queue untuk menyimpan lagu
-const queues = new Map();
-
-// Settings untuk setiap server
-const serverSettings = new Map();
+// Gunakan shared state dari shared-state.js
+const queues = sharedState.queues;
+const serverSettings = sharedState.serverSettings;
+const connections = sharedState.connections;
+const players = sharedState.players;
 
 // Struktur queue untuk setiap server
 class Queue {

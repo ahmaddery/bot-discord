@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <%- include('partials/navbar', { activePage: '' }) %>
+    
+    <div class="container">
+        <div class="error-page">
+            <div class="error-icon">404</div>
+            <h1>Page Not Found</h1>
+            <p>Halaman yang kamu cari tidak ditemukan.</p>
+            <a href="/" class="btn btn-primary">Kembali ke Home</a>
+        </div>
+    </div>
+
+    <%- include('partials/footer') %>
+</body>
+</html>

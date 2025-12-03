@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= guild.name %> - Joshua Music Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        spotify: {
+                            green: '#1DB954',
+                            black: '#191414',
+                            dark: '#121212',
+                            gray: '#282828',
+                            lightgray: '#b3b3b3'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Circular:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Circular', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .gradient-overlay {
+            background: linear-gradient(transparent 0, rgba(0,0,0,.5) 100%);
+        }
+    </style>
+</head>
+<body class="bg-black text-white">
+    <div class="flex h-screen overflow-hidden">
+        <%- include('partials/sidebar', { activePage: 'home' }) %>
+        
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <%- include('partials/topbar') %>
+            
+            <main class="flex-1 overflow-y-auto bg-gradient-to-b from-spotify-dark to-black p-8 scrollbar-hide">
+                <!-- Server Header -->
+                <div class="relative h-64 rounded-lg overflow-hidden mb-8" style="background: linear-gradient(135deg, <%= guild.icon ? '#1DB954' : '#282828' %> 0%, #191414 100%);">
+                    <div class="absolute inset-0 gradient-overlay"></div>
+                    <div class="relative z-10 h-full flex items-end p-8">
+                        <% if (guild.icon) { %>
+                            <img src="<%= guild.icon %>" alt="<%= guild.name %>" class="w-48 h-48 rounded-lg shadow-2xl mr-6 ring-4 ring-white/20">
+                        <% } else { %>
+                            <div class="w-48 h-48 bg-gradient-to-br from-spotify-green to-green-700 rounded-lg shadow-2xl mr-6 ring-4 ring-white/20 flex items-center justify-center text-6xl font-bold">
+                                <%= guild.name.charAt(0) %>
+                            </div>
+                        <% } %>
+                        <div>
+                            <p class="text-sm font-bold uppercase tracking-wider mb-2">Server</p>
+                            <h1 class="text-6xl font-black mb-4"><%= guild.name %></h1>
+                            <p class="text-spotify-lightgray text-sm">
+                                <span class="font-semibold"><%= guild.memberCount %></span> members
+                                <% if (queue && queue.isPlaying) { %>
+                                    • <span class="text-spotify-green">● Now Playing</span>
+                                <% } %>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings -->
+                <section class="mb-8">
+                    <h2 class="text-2xl font-bold mb-4">Settings</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-spotify-gray rounded-lg p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-spotify-lightgray text-sm mb-1">Volume</p>
+                                    <p class="text-3xl font-bold"><%= settings.volume %>%</p>
+                                </div>
+                                <span class="text-4xl">🔊</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-spotify-gray rounded-lg p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-spotify-lightgray text-sm mb-1">Quality</p>
+                                    <p class="text-2xl font-bold"><%= settings.quality.toUpperCase() %></p>
+                                </div>
+                                <span class="text-4xl">💿</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-spotify-gray rounded-lg p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-spotify-lightgray text-sm mb-1">AI Autoplay</p>
+                                    <% if (settings.aiAutoplay) { %>
+                                        <p class="text-2xl font-bold text-spotify-green">ON</p>
+                                    <% } else { %>
+                                        <p class="text-2xl font-bold text-red-400">OFF</p>
+                                    <% } %>
+                                </div>
+                                <span class="text-4xl">🤖</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Queue -->
+                <% if (queue && queue.songs.length > 0) { %>
+                <section class="mb-8">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-2xl font-bold">
+                            <% if (queue.isPaused) { %>
+                                Queue (Paused)
+                            <% } else if (queue.isPlaying) { %>
+                                Now Playing
+                            <% } else { %>
+                                Queue
+                            <% } %>
+                        </h2>
+                        <div class="flex items-center space-x-4">
+                            <button id="add-song-btn" class="px-4 py-2 bg-spotify-green hover:bg-green-600 text-black font-semibold rounded-full transition transform hover:scale-105">
+                                + Add Song
+                            </button>
+                            <div class="flex items-center space-x-4 text-sm text-spotify-lightgray">
+                                <span>
+                                    <% if (queue.repeatMode === 'song') { %>
+                                        🔂 Repeat Song
+                                    <% } else if (queue.repeatMode === 'queue') { %>
+                                        🔁 Repeat Queue
+                                    <% } else { %>
+                                        ➡️ Normal
+                                    <% } %>
+                                </span>
+                                <span>
+                                    <% if (queue.isShuffled) { %>
+                                        🔀 Shuffled
+                                    <% } else { %>
+                                        📋 Ordered
+                                    <% } %>
+                                </span>
+                                <span>🎵 <%= queue.songs.length %> songs</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="queue-list" class="space-y-2">
+                        <% queue.songs.forEach((song, index) => { %>
+                        <div class="flex items-center space-x-4 p-4 rounded-lg <%= song.isCurrent ? 'bg-spotify-gray' : 'hover:bg-spotify-gray/50' %> transition group">
+                            <span class="text-spotify-lightgray w-8 text-center font-semibold">
+                                <% if (song.isCurrent) { %>
+                                    <% if (queue.isPaused) { %>
+                                        <svg class="w-5 h-5 mx-auto text-spotify-green" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                    <% } else { %>
+                                        <svg class="w-5 h-5 mx-auto text-spotify-green animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+                                        </svg>
+                                    <% } %>
+                                <% } else { %>
+                                    <%= song.position %>
+                                <% } %>
+                            </span>
+                            <% if (song.thumbnail) { %>
+                                <img src="<%= song.thumbnail %>" alt="<%= song.title %>" class="w-14 h-14 rounded object-cover flex-shrink-0 shadow-lg">
+                            <% } else { %>
+                                <div class="w-14 h-14 bg-spotify-dark rounded flex items-center justify-center flex-shrink-0">
+                                    <span class="text-2xl">🎵</span>
+                                </div>
+                            <% } %>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-semibold truncate <%= song.isCurrent ? 'text-spotify-green' : '' %>"><%= song.title %></p>
+                                <p class="text-sm text-spotify-lightgray truncate">
+                                    👤 <%= song.requester || 'Unknown' %>
+                                </p>
+                            </div>
+                            <span class="text-sm text-spotify-lightgray">⏱️ <%= song.duration %></span>
+                            <% if (song.isCurrent) { %>
+                                <span class="text-spotify-green">●</span>
+                            <% } %>
+                        </div>
+                        <% }); %>
+                    </div>
+                </section>
+                <% } else { %>
+                <div class="flex flex-col items-center justify-center py-16">
+                    <div class="w-24 h-24 bg-spotify-gray rounded-full flex items-center justify-center mb-6">
+                        <span class="text-5xl">🎵</span>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-2">No active queue</h3>
+                    <p class="text-spotify-lightgray mb-6">Add songs from dashboard or Discord</p>
+                    <div class="flex space-x-4">
+                        <button id="add-song-btn" class="px-6 py-3 bg-spotify-green hover:bg-green-600 text-black font-bold rounded-full transition transform hover:scale-105">
+                            + Add Song
+                        </button>
+                        <code class="bg-spotify-gray px-6 py-3 rounded-lg text-spotify-green">joshua play &lt;song name&gt;</code>
+                    </div>
+                </div>
+                <% } %>
+            </main>
+
+            <%- include('partials/player') %>
+        </div>
+    </div>
+
+    <script src="/js/dashboard.js"></script>
+</body>
+</html>

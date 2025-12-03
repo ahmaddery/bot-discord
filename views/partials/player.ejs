@@ -1,0 +1,82 @@
+<!-- Now Playing Bar -->
+<div class="bg-spotify-gray border-t border-white/10 px-4 py-3">
+    <div class="flex items-center justify-between">
+        <!-- Song Info -->
+        <div class="flex items-center space-x-4 flex-1 min-w-0">
+            <div class="w-14 h-14 bg-spotify-dark rounded flex-shrink-0 overflow-hidden">
+                <img id="player-thumbnail" src="" alt="Album Art" class="w-full h-full object-cover hidden">
+                <div id="player-placeholder" class="w-full h-full flex items-center justify-center text-2xl">
+                    🎵
+                </div>
+            </div>
+            <div class="min-w-0 flex-1">
+                <p id="player-title" class="text-sm font-semibold truncate">No song playing</p>
+                <p id="player-artist" class="text-xs text-spotify-lightgray truncate">Connect to a server</p>
+            </div>
+            <button class="text-spotify-lightgray hover:text-spotify-green transition">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex flex-col items-center flex-1 max-w-2xl">
+            <div class="flex items-center space-x-4 mb-2">
+                <button class="text-spotify-lightgray hover:text-white transition" data-action="skip" title="Previous (not implemented)">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M8.445 14.832A1 1 0 0010 14v-2.798l5.445 3.63A1 1 0 0017 14V6a1 1 0 00-1.555-.832L10 8.798V6a1 1 0 00-1.555-.832l-6 4a1 1 0 000 1.664l6 4z"/>
+                    </svg>
+                </button>
+                
+                <button class="text-spotify-lightgray hover:text-white transition" title="Rewind (not implemented)">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                </button>
+
+                <button id="play-pause-btn" class="w-8 h-8 bg-white hover:scale-110 rounded-full flex items-center justify-center text-black transition transform" title="Play/Pause">
+                    <svg id="play-icon" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+                    </svg>
+                    <svg id="pause-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                </button>
+
+                <button class="text-spotify-lightgray hover:text-white transition" title="Forward (not implemented)">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                </button>
+
+                <button class="text-spotify-lightgray hover:text-white transition" data-action="skip" title="Skip to next">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M4.555 5.168A1 1 0 003 6v8a1 1 0 001.555.832L10 11.202V14a1 1 0 001.555.832l6-4a1 1 0 000-1.664l-6-4A1 1 0 0010 6v2.798l-5.445-3.63z"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="flex items-center space-x-2 w-full">
+                <span id="current-time" class="text-xs text-spotify-lightgray w-10 text-right">0:00</span>
+                <div class="flex-1 h-1 bg-spotify-dark rounded-full overflow-hidden group cursor-pointer">
+                    <div id="progress-bar" class="h-full bg-spotify-lightgray group-hover:bg-spotify-green transition" style="width: 0%"></div>
+                </div>
+                <span id="total-time" class="text-xs text-spotify-lightgray w-10">0:00</span>
+            </div>
+        </div>
+
+        <!-- Volume -->
+        <div class="flex items-center space-x-3 flex-1 justify-end">
+            <button class="text-spotify-lightgray hover:text-white transition">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"/>
+                </svg>
+            </button>
+            <div class="w-24 h-1 bg-spotify-dark rounded-full overflow-hidden group cursor-pointer">
+                <div id="volume-bar" class="h-full bg-spotify-lightgray group-hover:bg-white transition" style="width: 50%"></div>
+            </div>
+        </div>
+    </div>
+</div>
