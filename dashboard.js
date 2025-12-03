@@ -5,6 +5,7 @@ const { WebSocketServer } = require('ws');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
 const play = require('play-dl');
 const sharedState = require('./shared-state');
+const broadcast = require('./broadcast');
 require('dotenv').config();
 
 const app = express();
@@ -44,31 +45,6 @@ const queues = sharedState.queues;
 const serverSettings = sharedState.serverSettings;
 const connections = sharedState.connections;
 const players = sharedState.players;
-
-// Broadcast queue updates ke semua connected clients
-function broadcastQueueUpdate(guildId) {
-    const queue = queues.get(guildId);
-    const settings = serverSettings.get(guildId) || { volume: 50, quality: 'high', aiAutoplay: true };
-    
-    const data = JSON.stringify({
-        type: 'queueUpdate',
-        guildId: guildId,
-        queue: queue ? {
-            songs: queue.songs,
-            isPlaying: queue.isPlaying,
-            isPaused: queue.isPaused,
-            repeatMode: queue.repeatMode,
-            isShuffled: queue.isShuffled
-        } : null,
-        settings: settings
-    });
-
-    wss.clients.forEach((ws) => {
-        if (ws.readyState === 1) { // WebSocket.OPEN
-            ws.send(data);
-        }
-    });
-}
 
 // Update Discord presence when playing
 function updateDiscordPresence(queue) {
@@ -263,7 +239,7 @@ app.post('/api/server/:guildId/play', async (req, res) => {
         }
 
         // Broadcast update
-        broadcastQueueUpdate(guildId);
+        broadcast.broadcastQueueUpdate(guildId);
 
         res.json({ success: true, song });
     } catch (error) {
@@ -283,7 +259,7 @@ app.post('/api/server/:guildId/pause', (req, res) => {
     queue.player.pause();
     queue.isPaused = true;
     
-    broadcastQueueUpdate(guildId);
+    broadcast.broadcastQueueUpdate(guildId);
     res.json({ success: true, isPaused: true });
 });
 
@@ -298,7 +274,7 @@ app.post('/api/server/:guildId/resume', (req, res) => {
     queue.player.unpause();
     queue.isPaused = false;
     
-    broadcastQueueUpdate(guildId);
+    broadcast.broadcastQueueUpdate(guildId);
     res.json({ success: true, isPaused: false });
 });
 
@@ -313,7 +289,7 @@ app.post('/api/server/:guildId/skip', (req, res) => {
     // Stop current song to trigger next
     queue.player.stop();
     
-    broadcastQueueUpdate(guildId);
+    broadcast.broadcastQueueUpdate(guildId);
     res.json({ success: true });
 });
 
@@ -339,7 +315,7 @@ app.post('/api/server/:guildId/stop', (req, res) => {
     
     queues.delete(guildId);
     
-    broadcastQueueUpdate(guildId);
+    broadcast.broadcastQueueUpdate(guildId);
     res.json({ success: true });
 });
 
@@ -359,7 +335,7 @@ app.post('/api/server/:guildId/volume', (req, res) => {
     
     settings.volume = volume;
     
-    broadcastQueueUpdate(guildId);
+    broadcast.broadcastQueueUpdate(guildId);
     res.json({ success: true, volume });
 });
 
@@ -394,7 +370,7 @@ async function playSong(guild, queue) {
 
         // Update Discord presence
         updateDiscordPresence(queue);
-        broadcastQueueUpdate(guild.id);
+        broadcast.broadcastQueueUpdate(guild.id);
 
         // Handle player events
         queue.player.once(AudioPlayerStatus.Idle, () => {
@@ -404,7 +380,7 @@ async function playSong(guild, queue) {
                 playSong(guild, queue);
             } else {
                 queue.isPlaying = false;
-                broadcastQueueUpdate(guild.id);
+                broadcast.broadcastQueueUpdate(guild.id);
             }
         });
 
@@ -436,6 +412,9 @@ const server = app.listen(PORT, HOST, () => {
     console.log(`✅ Ready to accept connections!\n`);
 });
 
+// Register WebSocket server untuk broadcasting
+broadcast.setWebSocketServer(wss);
+
 // WebSocket upgrade
 server.on('upgrade', (request, socket, head) => {
     wss.handleUpgrade(request, socket, head, (ws) => {
@@ -452,7 +431,7 @@ wss.on('connection', (ws) => {
             const data = JSON.parse(message);
             
             if (data.type === 'requestUpdate') {
-                broadcastQueueUpdate(data.guildId);
+                broadcast.broadcastQueueUpdate(data.guildId);
             }
         } catch (error) {
             console.error('WebSocket message error:', error);
@@ -461,4 +440,4 @@ wss.on('connection', (ws) => {
 });
 
 // Export untuk integrasi dengan bot utama
-module.exports = { queues, serverSettings, app, client, broadcastQueueUpdate, updateDiscordPresence };
+module.exports = { queues, serverSettings, app, client, updateDiscordPresence };

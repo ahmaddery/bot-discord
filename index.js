@@ -7,6 +7,7 @@ const Deezer = require('deezer-public-api');
 const fetch = require('node-fetch');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const sharedState = require('./shared-state');
+const broadcast = require('./broadcast');
 
 // Inisialisasi Deezer
 const deezer = new Deezer();
@@ -323,6 +324,9 @@ async function autoplayNextSong(guild, queue) {
         if (song) {
             queue.songs.push(song);
             
+            // Broadcast ke dashboard
+            broadcast.broadcastQueueUpdate(guild.id);
+            
             // Kirim notifikasi
             if (queue.textChannel) {
                 const embed = new EmbedBuilder()
@@ -407,6 +411,9 @@ async function addToQueueAndPlay(message, song) {
                 
                 queue.songs.shift();
                 
+                // Broadcast ke dashboard
+                broadcast.broadcastQueueUpdate(message.guild.id);
+                
                 if (queue.songs.length > 0) {
                     playSong(message.guild, queue.songs[0]);
                 } else if (queue.repeatMode === 'queue' && queue.playHistory.length > 0) {
@@ -469,6 +476,9 @@ async function addToQueueAndPlay(message, song) {
     }
 
     queue.songs.push(song);
+    
+    // Broadcast ke dashboard
+    broadcast.broadcastQueueUpdate(message.guild.id);
     
     // Track user-added songs (bukan autoplay) untuk analisa pattern
     if (!song.isAutoplay) {
@@ -962,6 +972,10 @@ client.on('messageCreate', async (message) => {
 
         queue.player.pause();
         queue.isPaused = true;
+        
+        // Broadcast ke dashboard
+        broadcast.broadcastQueueUpdate(message.guild.id);
+        
         message.channel.send('⏸️ Lagu di-pause. Gunakan `coco resume` untuk melanjutkan.');
     }
 
@@ -978,6 +992,10 @@ client.on('messageCreate', async (message) => {
 
         queue.player.unpause();
         queue.isPaused = false;
+        
+        // Broadcast ke dashboard
+        broadcast.broadcastQueueUpdate(message.guild.id);
+        
         message.channel.send('▶️ Lagu dilanjutkan!');
     }
 
@@ -1228,6 +1246,9 @@ async function playSong(guild, song) {
 
         queue.player.play(resource);
         queue.isPlaying = true;
+        
+        // Broadcast ke dashboard
+        broadcast.broadcastQueueUpdate(guild.id);
 
     } catch (error) {
         console.error(error);
