@@ -1,76 +1,31 @@
 /**
- * Starter script untuk menjalankan bot dan dashboard bersamaan
+ * Starter script untuk menjalankan bot dan dashboard dalam satu process
+ * Ini penting untuk share memory antara bot dan dashboard!
  * Gunakan: npm start
  */
 
-const { spawn } = require('child_process');
-const path = require('path');
+console.log('🚀 Starting Discord Bot and Dashboard in single process...\n');
 
-console.log('🚀 Starting Discord Bot and Dashboard...\n');
+// Load dashboard first (sets up Express server + WebSocket)
+console.log('✅ Loading dashboard...');
+const dashboard = require('./dashboard.js');
 
-// Start Dashboard first (needs to setup WebSocket server)
-const dashboard = spawn('node', ['dashboard.js'], {
-    cwd: __dirname,
-    stdio: 'inherit',
-    shell: true
-});
+// Set global reference so bot can register itself
+global.dashboardModule = dashboard;
 
-// Wait 4 seconds for dashboard to initialize, then start bot
+// Wait for dashboard to initialize, then load bot
 setTimeout(() => {
-    console.log('🤖 Starting Discord Bot...\n');
-    
-    // Start Discord Bot
-    const bot = spawn('node', ['index.js'], {
-        cwd: __dirname,
-        stdio: 'inherit',
-        shell: true
-    });
-    
-    // Handle bot process
-    bot.on('error', (error) => {
-        console.error('❌ Bot Error:', error);
-    });
+    console.log('🤖 Loading Discord Bot...\n');
+    require('./index.js');
+}, 2000);
 
-    bot.on('close', (code) => {
-        console.log(`⚠️ Bot process exited with code ${code}`);
-        if (code !== 0) {
-            console.log('🔄 Restarting bot in 5 seconds...');
-            setTimeout(() => {
-                spawn('node', ['index.js'], {
-                    cwd: __dirname,
-                    stdio: 'inherit',
-                    shell: true
-                });
-            }, 5000);
-        }
-    });
-    
-    // Handle termination
-    process.on('SIGINT', () => {
-        console.log('\n⛔ Stopping bot and dashboard...');
-        bot.kill();
-        dashboard.kill();
-        process.exit(0);
-    });
-
-    process.on('SIGTERM', () => {
-        console.log('\n⛔ Stopping bot and dashboard...');
-        bot.kill();
-        dashboard.kill();
-        process.exit(0);
-    });
-}, 4000);
-
-// Handle dashboard process
-dashboard.on('error', (error) => {
-    console.error('❌ Dashboard Error:', error);
+// Handle termination
+process.on('SIGINT', () => {
+    console.log('\n⛔ Shutting down gracefully...');
+    process.exit(0);
 });
 
-dashboard.on('close', (code) => {
-    console.log(`⚠️ Dashboard process exited with code ${code}`);
-    process.exit(1);
+process.on('SIGTERM', () => {
+    console.log('\n⛔ Shutting down gracefully...');
+    process.exit(0);
 });
-
-console.log('✅ Dashboard starting...');
-console.log('📊 Dashboard: http://localhost:3000');
-console.log('⏳ Waiting for dashboard to initialize...\n');

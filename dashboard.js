@@ -23,22 +23,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Discord client untuk dashboard
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-    ],
-});
+// Dashboard will share the Discord client from index.js
+// We'll set this reference after index.js loads
+let client = null;
 
-// Login bot
-client.login(process.env.DISCORD_TOKEN);
-
-client.once('clientReady', () => {
-    console.log(`✅ Dashboard Bot: ${client.user.tag} connected!`);
-});
+function setDiscordClient(discordClient) {
+    client = discordClient;
+    console.log(`✅ Dashboard connected to bot: ${client.user.tag}`);
+}
 
 // Gunakan shared state dari shared-state.js
 const queues = sharedState.queues;
@@ -48,6 +40,8 @@ const players = sharedState.players;
 
 // Update Discord presence when playing
 function updateDiscordPresence(queue) {
+    if (!client || !client.user) return;
+    
     if (queue && queue.isPlaying && queue.songs.length > 0) {
         const currentSong = queue.songs[0];
         client.user.setPresence({
@@ -61,7 +55,7 @@ function updateDiscordPresence(queue) {
     } else {
         client.user.setPresence({
             activities: [{
-                name: 'joshua help',
+                name: 'coco help',
                 type: ActivityType.Listening
             }],
             status: 'idle'
@@ -71,6 +65,10 @@ function updateDiscordPresence(queue) {
 
 // Routes
 app.get('/', (req, res) => {
+    if (!client || !client.user) {
+        return res.send('⏳ Dashboard loading... Refresh in a moment.');
+    }
+    
     const guilds = client.guilds.cache.map(guild => ({
         id: guild.id,
         name: guild.name,
@@ -88,6 +86,10 @@ app.get('/', (req, res) => {
 });
 
 app.get('/server/:guildId', (req, res) => {
+    if (!client || !client.user) {
+        return res.send('⏳ Dashboard loading... Refresh in a moment.');
+    }
+    
     const { guildId } = req.params;
     const guild = client.guilds.cache.get(guildId);
 
@@ -162,6 +164,10 @@ app.get('/commands', (req, res) => {
 
 // API Endpoints
 app.get('/api/guilds', (req, res) => {
+    if (!client || !client.user) {
+        return res.json({ error: 'Bot not ready' });
+    }
+    
     const guilds = client.guilds.cache.map(guild => ({
         id: guild.id,
         name: guild.name,
@@ -191,6 +197,10 @@ app.get('/api/:guildId/queue', (req, res) => {
 
 // Control endpoints
 app.post('/api/:guildId/play', async (req, res) => {
+    if (!client || !client.user) {
+        return res.status(503).json({ error: 'Bot not ready' });
+    }
+    
     const { guildId } = req.params;
     const { query } = req.body;
     
@@ -442,4 +452,4 @@ wss.on('connection', (ws) => {
 });
 
 // Export untuk integrasi dengan bot utama
-module.exports = { queues, serverSettings, app, client, updateDiscordPresence };
+module.exports = { queues, serverSettings, app, setDiscordClient, updateDiscordPresence };

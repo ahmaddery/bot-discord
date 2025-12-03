@@ -590,6 +590,11 @@ client.once('clientReady', async () => {
     console.log(`✅ Bot ${client.user.tag} sudah online!`);
     client.user.setActivity('🎵 coco help untuk perintah', { type: 'LISTENING' });
     
+    // Register client ke dashboard jika dashboard sudah loaded
+    if (global.dashboardModule) {
+        global.dashboardModule.setDiscordClient(client);
+    }
+    
     // Setup play-dl setelah bot siap
     await setupPlayDL();
 });
