@@ -66,6 +66,8 @@ function connectWebSocket() {
     ws.onerror = (error) => {
         console.error('WebSocket error:', error);
     };
+}
+
 // Update queue display
 function updateQueue(guildId, queue) {
     console.log('🔄 updateQueue called:', { guildId, currentGuildId, queue });

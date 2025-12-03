@@ -8,22 +8,39 @@ const sharedState = require('./shared-state');
 // WebSocket server (akan di-set oleh dashboard.js)
 let wss = null;
 let isReady = false;
+let pendingBroadcasts = [];
 
 function setWebSocketServer(websocketServer) {
     wss = websocketServer;
-    isReady = true;
-    console.log('✅ WebSocket server registered for broadcasting');
+    
+    // Tunggu sebentar untuk memastikan server benar-benar ready
+    setTimeout(() => {
+        isReady = true;
+        console.log('✅ WebSocket server registered for broadcasting');
+        
+        // Broadcast pending updates
+        if (pendingBroadcasts.length > 0) {
+            console.log(`📤 Broadcasting ${pendingBroadcasts.length} pending updates...`);
+            pendingBroadcasts.forEach(guildId => {
+                broadcastQueueUpdate(guildId);
+            });
+            pendingBroadcasts = [];
+        }
+    }, 500);
 }
 
 function broadcastQueueUpdate(guildId) {
-    if (!isReady || !wss) {
-        // WebSocket belum ready, skip broadcast
-        console.log('⚠️ WebSocket not ready, skipping broadcast for guild:', guildId);
+    if (!guildId) {
+        console.log('⚠️ Guild ID is undefined, skipping broadcast');
         return;
     }
     
-    if (!guildId) {
-        console.log('⚠️ Guild ID is undefined, skipping broadcast');
+    if (!isReady || !wss) {
+        // WebSocket belum ready, simpan untuk nanti
+        if (!pendingBroadcasts.includes(guildId)) {
+            pendingBroadcasts.push(guildId);
+            console.log('📥 Queued broadcast for guild:', guildId, '(WebSocket not ready yet)');
+        }
         return;
     }
     
