@@ -112,14 +112,13 @@
                     </div>
                 </section>
 
-                <!-- Queue -->
-                <% if (queue && queue.songs.length > 0) { %>
+                <!-- Queue - ALWAYS RENDER CONTAINER FOR WEBSOCKET UPDATES -->
                 <section class="mb-8">
                     <div class="flex items-center justify-between mb-4">
                         <h2 class="text-2xl font-bold">
-                            <% if (queue.isPaused) { %>
+                            <% if (queue && queue.isPaused) { %>
                                 Queue (Paused)
-                            <% } else if (queue.isPlaying) { %>
+                            <% } else if (queue && queue.isPlaying) { %>
                                 Now Playing
                             <% } else { %>
                                 Queue
@@ -129,6 +128,7 @@
                             <button id="add-song-btn" class="px-4 py-2 bg-spotify-green hover:bg-green-600 text-black font-semibold rounded-full transition transform hover:scale-105">
                                 + Add Song
                             </button>
+                            <% if (queue && queue.songs && queue.songs.length > 0) { %>
                             <div class="flex items-center space-x-4 text-sm text-spotify-lightgray">
                                 <span>
                                     <% if (queue.repeatMode === 'song') { %>
@@ -148,11 +148,13 @@
                                 </span>
                                 <span>🎵 <%= queue.songs.length %> songs</span>
                             </div>
+                            <% } %>
                         </div>
                     </div>
 
                     <div id="queue-list" class="space-y-2">
-                        <% queue.songs.forEach((song, index) => { %>
+                        <% if (queue && queue.songs && queue.songs.length > 0) { %>
+                            <% queue.songs.forEach((song, index) => { %>
                         <div class="flex items-center space-x-4 p-4 rounded-lg <%= song.isCurrent ? 'bg-spotify-gray' : 'hover:bg-spotify-gray/50' %> transition group">
                             <span class="text-spotify-lightgray w-8 text-center font-semibold">
                                 <% if (song.isCurrent) { %>
@@ -188,23 +190,21 @@
                             <% } %>
                         </div>
                         <% }); %>
+                        <% } else { %>
+                        <!-- Empty state inside queue-list -->
+                        <div class="flex flex-col items-center justify-center py-16">
+                            <div class="w-24 h-24 bg-spotify-gray rounded-full flex items-center justify-center mb-6">
+                                <span class="text-5xl">🎵</span>
+                            </div>
+                            <h3 class="text-2xl font-bold mb-2">No active queue</h3>
+                            <p class="text-spotify-lightgray mb-6">Add songs from dashboard or Discord</p>
+                            <button id="add-song-btn-empty" class="px-6 py-3 bg-spotify-green hover:bg-green-600 text-black font-semibold rounded-full transition transform hover:scale-105">
+                                + Add Song
+                            </button>
+                        </div>
+                        <% } %>
                     </div>
                 </section>
-                <% } else { %>
-                <div class="flex flex-col items-center justify-center py-16">
-                    <div class="w-24 h-24 bg-spotify-gray rounded-full flex items-center justify-center mb-6">
-                        <span class="text-5xl">🎵</span>
-                    </div>
-                    <h3 class="text-2xl font-bold mb-2">No active queue</h3>
-                    <p class="text-spotify-lightgray mb-6">Add songs from dashboard or Discord</p>
-                    <div class="flex space-x-4">
-                        <button id="add-song-btn" class="px-6 py-3 bg-spotify-green hover:bg-green-600 text-black font-bold rounded-full transition transform hover:scale-105">
-                            + Add Song
-                        </button>
-                        <code class="bg-spotify-gray px-6 py-3 rounded-lg text-spotify-green">joshua play &lt;song name&gt;</code>
-                    </div>
-                </div>
-                <% } %>
             </main>
 
             <%- include('partials/player') %>

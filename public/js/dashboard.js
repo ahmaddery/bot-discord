@@ -278,10 +278,14 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', skipSong);
     });
     
-    // Add song button
+    // Add song button (header and empty state)
     const addSongBtn = document.getElementById('add-song-btn');
+    const addSongBtnEmpty = document.getElementById('add-song-btn-empty');
     if (addSongBtn) {
         addSongBtn.addEventListener('click', requestSong);
+    }
+    if (addSongBtnEmpty) {
+        addSongBtnEmpty.addEventListener('click', requestSong);
     }
     
     // Volume control
