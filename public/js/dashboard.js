@@ -338,10 +338,29 @@ async function addSongFromSearch(songData) {
         if (result.success) {
             hideSearchModal();
             
+            // Hide voice warning if shown
+            const voiceWarning = document.getElementById('voice-warning');
+            if (voiceWarning) {
+                voiceWarning.classList.add('hidden');
+            }
+            
             // Show success notification
             showNotification(`✅ Added: ${result.song.title}`, 'success');
         } else {
-            showNotification('❌ Failed to add song: ' + (result.error || 'Unknown error'), 'error');
+            // Check if it's voice channel error
+            if (result.error && result.error.includes('voice channel')) {
+                hideSearchModal();
+                
+                // Show voice warning
+                const voiceWarning = document.getElementById('voice-warning');
+                if (voiceWarning) {
+                    voiceWarning.classList.remove('hidden');
+                }
+                
+                showNotification('⚠️ ' + result.error, 'error');
+            } else {
+                showNotification('❌ Failed to add song: ' + (result.error || 'Unknown error'), 'error');
+            }
         }
     } catch (error) {
         showNotification('❌ Error adding song: ' + error.message, 'error');

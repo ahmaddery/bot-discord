@@ -327,18 +327,74 @@ app.post('/api/:guildId/play', async (req, res) => {
 
         let queue = queues.get(guildId);
         
-        // Jika belum ada queue, cari class Queue dari index.js atau buat simple
-        if (!queue) {
-            queue = {
-                songs: [],
-                isPlaying: false,
-                isPaused: false,
-                repeatMode: 'off',
-                isShuffled: false,
-                connection: null,
-                player: null
-            };
-            queues.set(guildId, queue);
+        // Check if bot is in a voice channel
+        const botMember = guild.members.cache.get(client.user.id);
+        const voiceChannel = botMember?.voice?.channel;
+        
+        if (!voiceChannel) {
+            // Find a voice channel with members to join
+            const channels = guild.channels.cache.filter(
+                ch => ch.type === 2 && ch.members.size > 0 // Type 2 = voice channel
+            );
+            
+            if (channels.size === 0) {
+                return res.status(400).json({ 
+                    error: 'Bot is not in a voice channel. Please join a voice channel first or use Discord command to summon the bot.' 
+                });
+            }
+            
+            // Join the first voice channel with members
+            const targetChannel = channels.first();
+            
+            try {
+                const connection = joinVoiceChannel({
+                    channelId: targetChannel.id,
+                    guildId: guild.id,
+                    adapterCreator: guild.voiceAdapterCreator,
+                });
+                
+                console.log(`🎤 Bot joined voice channel: ${targetChannel.name}`);
+                
+                // Create new queue if doesn't exist
+                if (!queue) {
+                    queue = {
+                        songs: [],
+                        isPlaying: false,
+                        isPaused: false,
+                        repeatMode: 'off',
+                        isShuffled: false,
+                        connection: connection,
+                        player: null
+                    };
+                    queues.set(guildId, queue);
+                } else {
+                    queue.connection = connection;
+                }
+                
+            } catch (error) {
+                console.error('Error joining voice channel:', error);
+                return res.status(500).json({ error: 'Failed to join voice channel' });
+            }
+        } else {
+            // Bot already in voice, create queue if needed
+            if (!queue) {
+                const connection = guild.voiceAdapterCreator ? joinVoiceChannel({
+                    channelId: voiceChannel.id,
+                    guildId: guild.id,
+                    adapterCreator: guild.voiceAdapterCreator,
+                }) : null;
+                
+                queue = {
+                    songs: [],
+                    isPlaying: false,
+                    isPaused: false,
+                    repeatMode: 'off',
+                    isShuffled: false,
+                    connection: connection,
+                    player: null
+                };
+                queues.set(guildId, queue);
+            }
         }
 
         queue.songs.push(song);
@@ -467,22 +523,37 @@ async function playSong(guild, queue) {
 
         // Set volume
         const settings = serverSettings.get(guild.id) || { volume: 100 };
-        resource.volume.setVolume(settings.volume / 100);
+        if (resource.volume) {
+            resource.volume.setVolume(settings.volume / 100);
+        }
 
         if (!queue.player) {
             queue.player = createAudioPlayer();
             players.set(guild.id, queue.player);
         }
+        
+        // CRITICAL: Subscribe player to connection!
+        if (queue.connection) {
+            queue.connection.subscribe(queue.player);
+            console.log('✅ Player subscribed to voice connection');
+        } else {
+            console.error('❌ No voice connection available!');
+            queue.isPlaying = false;
+            return;
+        }
 
         queue.player.play(resource);
         queue.isPlaying = true;
         queue.isPaused = false;
+        
+        console.log(`🎵 Dashboard playing: ${song.title}`);
 
         // Update Discord presence
         updateDiscordPresence(queue);
         broadcast.broadcastQueueUpdate(guild.id);
 
-        // Handle player events
+        // Handle player events (remove old listeners first)
+        queue.player.removeAllListeners(AudioPlayerStatus.Idle);
         queue.player.once(AudioPlayerStatus.Idle, () => {
             queue.songs.shift();
             
@@ -493,10 +564,26 @@ async function playSong(guild, queue) {
                 broadcast.broadcastQueueUpdate(guild.id);
             }
         });
+        
+        queue.player.removeAllListeners('error');
+        queue.player.on('error', error => {
+            console.error('Player error:', error);
+            queue.isPlaying = false;
+            queue.songs.shift();
+            
+            if (queue.songs.length > 0) {
+                playSong(guild, queue);
+            } else {
+                broadcast.broadcastQueueUpdate(guild.id);
+            }
+        });
 
     } catch (error) {
         console.error('Error playing song:', error);
         queue.isPlaying = false;
+        broadcast.broadcastQueueUpdate(guild.id);
+    }
+}
     }
 }
 
