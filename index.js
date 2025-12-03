@@ -782,13 +782,13 @@ client.on('messageCreate', async (message) => {
             });
 
             platformCollector.on('collect', async (interaction) => {
+                // Respond immediately to prevent timeout - HARUS DI BARIS PERTAMA!
+                await interaction.deferUpdate().catch(err => {
+                    console.error('Failed to defer platform interaction:', err);
+                });
+
                 try {
                     const selectedPlatform = interaction.values[0];
-                    
-                    // Respond immediately to prevent timeout
-                    await interaction.deferUpdate().catch(err => {
-                        console.error('Failed to defer platform interaction:', err);
-                    });
 
                     // Pilih tracks berdasarkan platform
                 const tracks = selectedPlatform === 'soundcloud' ? scTracks : dzTracks;
@@ -845,14 +845,14 @@ client.on('messageCreate', async (message) => {
                 });
 
                 songCollector.on('collect', async (songInteraction) => {
+                    // Respond immediately to prevent timeout - HARUS DI BARIS PERTAMA!
+                    await songInteraction.deferUpdate().catch(err => {
+                        console.error('Failed to defer song interaction:', err);
+                    });
+
                     try {
                         const [platform, indexStr] = songInteraction.values[0].split('_');
                         const index = parseInt(indexStr);
-
-                        // Respond immediately to prevent timeout
-                        await songInteraction.deferUpdate().catch(err => {
-                            console.error('Failed to defer song interaction:', err);
-                        });
 
                         let song;
 
