@@ -16,6 +16,7 @@ function setWebSocketServer(websocketServer) {
 function broadcastQueueUpdate(guildId) {
     if (!wss) {
         // WebSocket belum ready, skip broadcast
+        console.log('⚠️ WebSocket not ready, skipping broadcast');
         return;
     }
     
@@ -24,6 +25,9 @@ function broadcastQueueUpdate(guildId) {
     
     const queue = queues.get(guildId);
     const settings = serverSettings.get(guildId) || { volume: 50, quality: 'high', aiAutoplay: true };
+    
+    console.log('📤 Broadcasting queue update for guild:', guildId);
+    console.log('📊 Queue data:', queue ? `${queue.songs.length} songs, playing: ${queue.isPlaying}, paused: ${queue.isPaused}` : 'null');
     
     const data = JSON.stringify({
         type: 'queueUpdate',
@@ -38,11 +42,15 @@ function broadcastQueueUpdate(guildId) {
         settings: settings
     });
 
+    let clientCount = 0;
     wss.clients.forEach((ws) => {
         if (ws.readyState === 1) { // WebSocket.OPEN
             ws.send(data);
+            clientCount++;
         }
     });
+    
+    console.log(`✅ Broadcasted to ${clientCount} clients`);
 }
 
 module.exports = {

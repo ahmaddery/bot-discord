@@ -21,15 +21,26 @@ function connectWebSocket() {
         clearInterval(reconnectInterval);
         reconnectInterval = null;
         
-        // Request initial update
-        ws.send(JSON.stringify({ type: 'requestUpdate' }));
+        // Set current guild ID
+        currentGuildId = getCurrentGuildId();
+        
+        // Request initial update with guild ID
+        if (currentGuildId) {
+            console.log('📡 Requesting initial update for guild:', currentGuildId);
+            ws.send(JSON.stringify({ 
+                type: 'requestUpdate',
+                guildId: currentGuildId
+            }));
+        }
     };
     
     ws.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
+            console.log('📨 WebSocket message received:', data.type, data);
             
             if (data.type === 'queueUpdate') {
+                console.log('🎵 Queue update for guild:', data.guildId, 'Current guild:', currentGuildId);
                 updateQueue(data.guildId, data.queue);
                 updateNowPlaying(data.queue);
             } else if (data.type === 'nowPlaying') {
@@ -55,18 +66,29 @@ function connectWebSocket() {
     ws.onerror = (error) => {
         console.error('WebSocket error:', error);
     };
-}
-
 // Update queue display
 function updateQueue(guildId, queue) {
+    console.log('🔄 updateQueue called:', { guildId, currentGuildId, queue });
+    
     // Only update if we're on the same server page
-    if (currentGuildId && currentGuildId !== guildId) return;
+    if (currentGuildId && currentGuildId !== guildId) {
+        console.log('⏭️ Skipping update - different guild');
+        return;
+    }
     
     const queueContainer = document.getElementById('queue-list');
-    if (!queueContainer) return;
+    if (!queueContainer) {
+        console.log('❌ Queue container not found');
+        return;
+    }
     
     if (!queue || !queue.songs || queue.songs.length === 0) {
+        console.log('📭 Queue is empty');
         queueContainer.innerHTML = '<div class="text-center text-spotify-lightgray py-8">No songs in queue</div>';
+        return;
+    }
+    
+    console.log('✅ Updating queue with', queue.songs.length, 'songs');   queueContainer.innerHTML = '<div class="text-center text-spotify-lightgray py-8">No songs in queue</div>';
         return;
     }
     
@@ -225,11 +247,15 @@ async function requestSong() {
 
 // Player controls
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 Dashboard initialized');
+    
     // Get current guild ID
     currentGuildId = getCurrentGuildId();
+    console.log('📍 Current guild ID:', currentGuildId);
     
     // Connect WebSocket
     connectWebSocket();
+    console.log('🔌 WebSocket connection initiated');
     
     // Play/Pause button
     const playPauseBtn = document.getElementById('play-pause-btn');
