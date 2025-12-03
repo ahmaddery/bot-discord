@@ -51,6 +51,7 @@ function broadcastQueueUpdate(guildId) {
     const queues = sharedState.queues;
     const serverSettings = sharedState.serverSettings;
     
+    console.log('📦 Broadcast accessing queues. Map size:', queues.size);
     const queue = queues.get(guildId);
     const settings = serverSettings.get(guildId) || { volume: 50, quality: 'high', aiAutoplay: true };
     
