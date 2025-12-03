@@ -78,6 +78,13 @@ function updateQueue(guildId, queue) {
         return;
     }
     
+    // Wait for DOM to be ready if called too early
+    if (document.readyState === 'loading') {
+        console.log('⏳ DOM not ready, waiting...');
+        document.addEventListener('DOMContentLoaded', () => updateQueue(guildId, queue));
+        return;
+    }
+    
     const queueContainer = document.getElementById('queue-list');
     console.log('🔍 Queue container element:', queueContainer);
     console.log('📄 Current page path:', window.location.pathname);

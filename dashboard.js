@@ -173,7 +173,7 @@ app.get('/api/guilds', (req, res) => {
     res.json(guilds);
 });
 
-app.get('/api/server/:guildId/queue', (req, res) => {
+app.get('/api/:guildId/queue', (req, res) => {
     const queue = queues.get(req.params.guildId);
     
     if (!queue) {
@@ -190,7 +190,7 @@ app.get('/api/server/:guildId/queue', (req, res) => {
 });
 
 // Control endpoints
-app.post('/api/server/:guildId/play', async (req, res) => {
+app.post('/api/:guildId/play', async (req, res) => {
     const { guildId } = req.params;
     const { query } = req.body;
     
@@ -248,7 +248,7 @@ app.post('/api/server/:guildId/play', async (req, res) => {
     }
 });
 
-app.post('/api/server/:guildId/pause', (req, res) => {
+app.post('/api/:guildId/pause', (req, res) => {
     const { guildId } = req.params;
     const queue = queues.get(guildId);
     
@@ -263,7 +263,7 @@ app.post('/api/server/:guildId/pause', (req, res) => {
     res.json({ success: true, isPaused: true });
 });
 
-app.post('/api/server/:guildId/resume', (req, res) => {
+app.post('/api/:guildId/resume', (req, res) => {
     const { guildId } = req.params;
     const queue = queues.get(guildId);
     
@@ -278,7 +278,7 @@ app.post('/api/server/:guildId/resume', (req, res) => {
     res.json({ success: true, isPaused: false });
 });
 
-app.post('/api/server/:guildId/skip', (req, res) => {
+app.post('/api/:guildId/skip', (req, res) => {
     const { guildId } = req.params;
     const queue = queues.get(guildId);
     
@@ -293,7 +293,7 @@ app.post('/api/server/:guildId/skip', (req, res) => {
     res.json({ success: true });
 });
 
-app.post('/api/server/:guildId/stop', (req, res) => {
+app.post('/api/:guildId/stop', (req, res) => {
     const { guildId } = req.params;
     const queue = queues.get(guildId);
     
@@ -319,7 +319,7 @@ app.post('/api/server/:guildId/stop', (req, res) => {
     res.json({ success: true });
 });
 
-app.post('/api/server/:guildId/volume', (req, res) => {
+app.post('/api/:guildId/volume', (req, res) => {
     const { guildId } = req.params;
     const { volume } = req.body;
     
