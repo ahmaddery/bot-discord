@@ -782,11 +782,15 @@ client.on('messageCreate', async (message) => {
             });
 
             platformCollector.on('collect', async (interaction) => {
-                const selectedPlatform = interaction.values[0];
-                
-                await interaction.deferUpdate();
+                try {
+                    const selectedPlatform = interaction.values[0];
+                    
+                    // Respond immediately to prevent timeout
+                    await interaction.deferUpdate().catch(err => {
+                        console.error('Failed to defer platform interaction:', err);
+                    });
 
-                // Pilih tracks berdasarkan platform
+                    // Pilih tracks berdasarkan platform
                 const tracks = selectedPlatform === 'soundcloud' ? scTracks : dzTracks;
 
                 // Buat embed untuk list lagu
@@ -841,12 +845,15 @@ client.on('messageCreate', async (message) => {
                 });
 
                 songCollector.on('collect', async (songInteraction) => {
-                    const [platform, indexStr] = songInteraction.values[0].split('_');
-                    const index = parseInt(indexStr);
-
-                    await songInteraction.deferUpdate();
-
                     try {
+                        const [platform, indexStr] = songInteraction.values[0].split('_');
+                        const index = parseInt(indexStr);
+
+                        // Respond immediately to prevent timeout
+                        await songInteraction.deferUpdate().catch(err => {
+                            console.error('Failed to defer song interaction:', err);
+                        });
+
                         let song;
 
                         if (platform === 'soundcloud') {
@@ -919,6 +926,15 @@ client.on('messageCreate', async (message) => {
                         }).catch(() => {});
                     }
                 });
+                
+                } catch (error) {
+                    console.error('Platform selection error:', error);
+                    await searchMsg.edit({ 
+                        content: '❌ Terjadi error saat memproses platform!', 
+                        embeds: [], 
+                        components: [] 
+                    }).catch(() => {});
+                }
 
                 platformCollector.stop();
             });
