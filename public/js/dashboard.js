@@ -88,9 +88,7 @@ function updateQueue(guildId, queue) {
         return;
     }
     
-    console.log('✅ Updating queue with', queue.songs.length, 'songs');   queueContainer.innerHTML = '<div class="text-center text-spotify-lightgray py-8">No songs in queue</div>';
-        return;
-    }
+    console.log('✅ Updating queue with', queue.songs.length, 'songs');
     
     queueContainer.innerHTML = queue.songs.map((song, index) => `
         <div class="flex items-center space-x-4 p-4 rounded-lg ${index === 0 ? 'bg-spotify-gray' : 'hover:bg-spotify-gray/50'} transition group">

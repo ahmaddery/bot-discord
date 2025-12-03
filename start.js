@@ -15,7 +15,7 @@ const dashboard = spawn('node', ['dashboard.js'], {
     shell: true
 });
 
-// Wait 2 seconds for dashboard to initialize, then start bot
+// Wait 3 seconds for dashboard to initialize, then start bot
 setTimeout(() => {
     console.log('🤖 Starting Discord Bot...\n');
     
@@ -59,7 +59,7 @@ setTimeout(() => {
         dashboard.kill();
         process.exit(0);
     });
-}, 2000);
+}, 3000);
 
 // Handle dashboard process
 dashboard.on('error', (error) => {
