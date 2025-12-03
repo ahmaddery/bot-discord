@@ -429,8 +429,10 @@ wss.on('connection', (ws) => {
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
+            console.log('📥 WebSocket message from client:', data);
             
-            if (data.type === 'requestUpdate') {
+            if (data.type === 'requestUpdate' && data.guildId) {
+                console.log('🔄 Requesting update for guild:', data.guildId);
                 broadcast.broadcastQueueUpdate(data.guildId);
             }
         } catch (error) {

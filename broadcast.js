@@ -7,16 +7,23 @@ const sharedState = require('./shared-state');
 
 // WebSocket server (akan di-set oleh dashboard.js)
 let wss = null;
+let isReady = false;
 
 function setWebSocketServer(websocketServer) {
     wss = websocketServer;
+    isReady = true;
     console.log('✅ WebSocket server registered for broadcasting');
 }
 
 function broadcastQueueUpdate(guildId) {
-    if (!wss) {
+    if (!isReady || !wss) {
         // WebSocket belum ready, skip broadcast
-        console.log('⚠️ WebSocket not ready, skipping broadcast');
+        console.log('⚠️ WebSocket not ready, skipping broadcast for guild:', guildId);
+        return;
+    }
+    
+    if (!guildId) {
+        console.log('⚠️ Guild ID is undefined, skipping broadcast');
         return;
     }
     
