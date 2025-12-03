@@ -427,9 +427,13 @@ app.use((req, res) => {
 });
 
 // Start server
-const server = app.listen(PORT, () => {
-    console.log(`\n🌐 Dashboard running at http://localhost:${PORT}`);
-    console.log(`📊 Visit the dashboard to manage your bot!\n`);
+const HOST = process.env.DASHBOARD_HOST || '0.0.0.0';
+
+const server = app.listen(PORT, HOST, () => {
+    console.log(`\n🌐 Dashboard running at http://${HOST}:${PORT}`);
+    console.log(`📊 Local access: http://localhost:${PORT}`);
+    console.log(`📡 Network access: http://20.17.97.248:${PORT}`);
+    console.log(`✅ Ready to accept connections!\n`);
 });
 
 // WebSocket upgrade
