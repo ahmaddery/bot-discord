@@ -584,8 +584,6 @@ async function playSong(guild, queue) {
         broadcast.broadcastQueueUpdate(guild.id);
     }
 }
-    }
-}
 
 function formatDuration(seconds) {
     if (!seconds) return '0:00';
