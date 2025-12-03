@@ -51,6 +51,7 @@ function broadcastQueueUpdate(guildId) {
     const settings = serverSettings.get(guildId) || { volume: 50, quality: 'high', aiAutoplay: true };
     
     console.log('📤 Broadcasting queue update for guild:', guildId);
+    console.log('📊 Queue raw:', queue);
     console.log('📊 Queue data:', queue ? `${queue.songs.length} songs, playing: ${queue.isPlaying}, paused: ${queue.isPaused}` : 'null');
     
     const data = JSON.stringify({

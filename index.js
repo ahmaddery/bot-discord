@@ -359,6 +359,7 @@ async function addToQueueAndPlay(message, song) {
     
     if (!queue) {
         queue = new Queue();
+        queue.textChannel = message.channel; // Save text channel for notifications
         queues.set(message.guild.id, queue);
 
         queue.connection = joinVoiceChannel({
@@ -369,6 +370,9 @@ async function addToQueueAndPlay(message, song) {
 
         queue.player = createAudioPlayer();
         queue.connection.subscribe(queue.player);
+        
+        // Broadcast initial queue creation
+        broadcast.broadcastQueueUpdate(message.guild.id);
 
         // Event ketika lagu selesai
         queue.player.on(AudioPlayerStatus.Idle, async () => {
@@ -553,6 +557,9 @@ async function addToQueueAndPlay(message, song) {
             .setThumbnail(song.thumbnail);
         
         message.channel.send({ embeds: [embed] });
+        
+        // Broadcast to dashboard
+        broadcast.broadcastQueueUpdate(message.guild.id);
     } else {
         const embed = new EmbedBuilder()
             .setColor('#00FF00')
@@ -566,6 +573,9 @@ async function addToQueueAndPlay(message, song) {
             .setThumbnail(song.thumbnail);
         
         message.channel.send({ embeds: [embed] });
+        
+        // Broadcast to dashboard
+        broadcast.broadcastQueueUpdate(message.guild.id);
     }
 }
 
