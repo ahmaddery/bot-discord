@@ -3,6 +3,17 @@ let ws = null;
 let reconnectInterval = null;
 let currentGuildId = null;
 
+// Suppress Tailwind CDN production warning in console
+(function() {
+    const originalWarn = console.warn;
+    console.warn = function(...args) {
+        if (args[0]?.includes?.('cdn.tailwindcss.com should not be used in production')) {
+            return; // Suppress this specific warning
+        }
+        originalWarn.apply(console, args);
+    };
+})();
+
 // Get guild ID from URL if on server page
 function getCurrentGuildId() {
     const path = window.location.pathname;
@@ -102,6 +113,9 @@ function updateQueue(guildId, queue) {
     
     console.log('✅ Updating queue with', queue.songs.length, 'songs');
     
+    // Use a base64 encoded SVG placeholder for missing thumbnails
+    const defaultThumbnail = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjMUIxQjFCIi8+CjxwYXRoIGQ9Ik0zNS41IDY1LjVWMzQuNUw2My41IDUwTDM1LjUgNjUuNVoiIGZpbGw9IiMxREI5NTQiLz4KPC9zdmc+';
+    
     queueContainer.innerHTML = queue.songs.map((song, index) => `
         <div class="flex items-center space-x-4 p-4 rounded-lg ${index === 0 ? 'bg-spotify-gray' : 'hover:bg-spotify-gray/50'} transition group">
             <span class="text-spotify-lightgray w-8 text-center font-semibold">
@@ -113,7 +127,7 @@ function updateQueue(guildId, queue) {
                     index + 1
                 }
             </span>
-            <img src="${song.thumbnail || '/img/default-album.png'}" alt="${song.title}" class="w-14 h-14 rounded object-cover flex-shrink-0 shadow-lg">
+            <img src="${song.thumbnail || defaultThumbnail}" alt="${song.title}" class="w-14 h-14 rounded object-cover flex-shrink-0 shadow-lg bg-spotify-gray">
             <div class="flex-1 min-w-0">
                 <p class="font-semibold truncate ${index === 0 ? 'text-spotify-green' : ''}">${song.title}</p>
                 <p class="text-sm text-spotify-lightgray truncate">👤 ${song.requester || 'Unknown'}</p>
