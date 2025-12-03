@@ -79,8 +79,11 @@ function updateQueue(guildId, queue) {
     }
     
     const queueContainer = document.getElementById('queue-list');
+    console.log('🔍 Queue container element:', queueContainer);
+    console.log('📄 Current page path:', window.location.pathname);
+    
     if (!queueContainer) {
-        console.log('❌ Queue container not found');
+        console.log('❌ Queue container not found - might be on wrong page');
         return;
     }
     
@@ -201,30 +204,30 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
 async function playPause() {
     if (!currentGuildId) return;
     
-    const queue = await apiRequest(`/api/server/${currentGuildId}/queue`);
+    const queue = await apiRequest(`/api/${currentGuildId}/queue`);
     
     if (queue.isPaused) {
-        await apiRequest(`/api/server/${currentGuildId}/resume`, 'POST');
+        await apiRequest(`/api/${currentGuildId}/resume`, 'POST');
     } else {
-        await apiRequest(`/api/server/${currentGuildId}/pause`, 'POST');
+        await apiRequest(`/api/${currentGuildId}/pause`, 'POST');
     }
 }
 
 async function skipSong() {
     if (!currentGuildId) return;
-    await apiRequest(`/api/server/${currentGuildId}/skip`, 'POST');
+    await apiRequest(`/api/${currentGuildId}/skip`, 'POST');
 }
 
 async function stopPlayback() {
     if (!currentGuildId) return;
     if (confirm('Stop playback and clear queue?')) {
-        await apiRequest(`/api/server/${currentGuildId}/stop`, 'POST');
+        await apiRequest(`/api/${currentGuildId}/stop`, 'POST');
     }
 }
 
 async function changeVolume(volume) {
     if (!currentGuildId) return;
-    await apiRequest(`/api/server/${currentGuildId}/volume`, 'POST', { volume });
+    await apiRequest(`/api/${currentGuildId}/volume`, 'POST', { volume });
 }
 
 async function requestSong() {
@@ -234,7 +237,7 @@ async function requestSong() {
     if (!query) return;
     
     try {
-        const result = await apiRequest(`/api/server/${currentGuildId}/play`, 'POST', { query });
+        const result = await apiRequest(`/api/${currentGuildId}/play`, 'POST', { query });
         if (result.success) {
             alert(`Added: ${result.song.title}`);
         } else {
